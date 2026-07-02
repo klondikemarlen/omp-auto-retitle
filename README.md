@@ -15,16 +15,14 @@ This extension uses the current OMP session manager path `ctx.sessionManager.set
 
 ## Install locally
 
-```sh
-omp config set extensions '["~/code/klondikemarlen/omp-auto-retitle"]'
-```
-
-Or add it by hand to `~/.omp/agent/config.yml`:
+Add the extension path to `~/.omp/agent/config.yml` alongside any existing entries:
 
 ```yaml
 extensions:
   - ~/code/klondikemarlen/omp-auto-retitle
 ```
+
+Do not replace an existing `extensions` array unless you want to disable the other extensions.
 
 ## Enable local title generation
 
