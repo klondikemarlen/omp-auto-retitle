@@ -1,0 +1,36 @@
+{
+  "name": "omp-auto-retitle",
+  "version": "1.0.0",
+  "description": "Retitle OMP sessions after compaction.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/klondikemarlen/omp-auto-retitle.git"
+  },
+  "homepage": "https://github.com/klondikemarlen/omp-auto-retitle#readme",
+  "bugs": {
+    "url": "https://github.com/klondikemarlen/omp-auto-retitle/issues"
+  },
+  "qna": false,
+  "keywords": [
+    "omp",
+    "oh-my-pi",
+    "plugin",
+    "extension",
+    "session-title"
+  ],
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "omp": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}
