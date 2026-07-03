@@ -16,7 +16,8 @@ export async function setAutoSessionName(sessionManager, title) {
     return false
   }
 
-  return sessionManager.setSessionName(title, AUTO_TITLE_SOURCE, RETITLE_TRIGGER)
+  const result = await sessionManager.setSessionName(title, AUTO_TITLE_SOURCE, RETITLE_TRIGGER)
+  return result !== false
 }
 
 export async function generateTitleWithOmp(input, ctx, pi) {

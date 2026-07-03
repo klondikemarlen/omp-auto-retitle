@@ -9,6 +9,7 @@ Intelligent OMP session title management over time.
 - Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
+- Adds `/retitle` for on-demand verification without retitling on every prompt.
 
 ## Scope
 
@@ -23,6 +24,11 @@ The title context is built from:
 It intentionally ignores raw recent user turns for title scope, because narrow
 maintenance requests like "set package version to 0.7" should not become the
 whole session title unless that is reflected in the broader compaction history.
+
+For trust and stability, automatic retitling stays tied to `session_compact`.
+Retitling on every user prompt would increase churn and let narrow subtasks
+overweight the session title. Use `/retitle` when you want to test or correct
+the title immediately.
 
 There are no optional plugin features today. OMP may still write
 `"enabledFeatures": null` in its plugin lockfile; that means "use default

@@ -16,11 +16,19 @@ export {
   titleInputFromSession,
 }
 
-export default function autoRetitleExtension(pi) {
+export default function autoRetitleExtension(pi, options = {}) {
   pi.setLabel("Auto Retitle")
 
   pi.on("session_compact", async (event, ctx) => {
-    await retitleFromCompaction(event, ctx, { pi })
+    await retitleFromCompaction(event, ctx, { ...options, pi })
+  })
+
+  pi.registerCommand("retitle", {
+    description: "Regenerate the auto session title from original task and compaction history.",
+    handler: async (_args, ctx) => {
+      const changed = await retitleFromCompaction({}, ctx, { ...options, pi })
+      ctx.ui?.notify?.(changed ? "Session title regenerated" : "Session title unchanged", "info")
+    },
   })
 }
 

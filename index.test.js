@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import {
+import autoRetitleExtension, {
   canRetitle,
   generateTitleWithOmp,
   retitleFromCompaction,
@@ -149,6 +149,121 @@ test("retitleFromCompaction skips user-titled sessions before title generation",
     ),
     false,
   )
+})
+
+test("autoRetitleExtension registers and runs compaction retitles", async () => {
+  const events = new Map()
+  const commands = new Map()
+  const renamed = []
+  const pi = {
+    setLabel: (label) => assert.equal(label, "Auto Retitle"),
+    on: (eventName, handler) => events.set(eventName, handler),
+    registerCommand: (name, command) => commands.set(name, command),
+  }
+  const ctx = {
+    sessionManager: {
+      getBranch: () => [
+        { type: "message", message: { role: "user", content: "Fix checkout totals" } },
+      ],
+      getSessionName: () => "Old title",
+      setSessionName: (...args) => renamed.push(args),
+    },
+  }
+
+  autoRetitleExtension(pi, {
+    generateTitle: async (input) => {
+      assert.equal(
+        input,
+        [
+          "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+          "Original user request:\nFix checkout totals",
+          "Compaction history:\n- Found discount order bug",
+        ].join("\n\n"),
+      )
+      return "Checkout totals"
+    },
+  })
+
+  assert.equal(typeof events.get("session_compact"), "function")
+  assert.equal(typeof commands.get("retitle")?.handler, "function")
+
+  await events.get("session_compact")(
+    { compactionEntry: { shortSummary: "Found discount order bug" } },
+    ctx,
+  )
+
+  assert.deepEqual(renamed, [["Checkout totals", "auto", "omp-auto-retitle:session_compact"]])
+})
+
+test("retitle command notifies when the generated title changes", async () => {
+  const commands = new Map()
+  const notifications = []
+  const renamed = []
+  const pi = {
+    setLabel: () => {},
+    on: () => {},
+    registerCommand: (name, command) => commands.set(name, command),
+  }
+  const ctx = {
+    ui: { notify: (...args) => notifications.push(args) },
+    sessionManager: {
+      titleSource: "auto",
+      getBranch: () => [
+        { type: "message", message: { role: "user", content: "Fix checkout totals" } },
+      ],
+      getSessionName: () => "Old title",
+      setSessionName: (...args) => {
+        renamed.push(args)
+      },
+    },
+  }
+
+  autoRetitleExtension(pi, {
+    generateTitle: async (input) => {
+      assert.equal(
+        input,
+        [
+          "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+          "Original user request:\nFix checkout totals",
+        ].join("\n\n"),
+      )
+      return "Checkout totals"
+    },
+  })
+
+  await commands.get("retitle").handler([{ compactionEntry: { shortSummary: "ignored" } }], ctx)
+
+  assert.deepEqual(renamed, [["Checkout totals", "auto", "omp-auto-retitle:session_compact"]])
+  assert.deepEqual(notifications, [["Session title regenerated", "info"]])
+})
+
+test("retitle command notifies when the generated title is unchanged", async () => {
+  const commands = new Map()
+  const notifications = []
+  const pi = {
+    setLabel: () => {},
+    on: () => {},
+    registerCommand: (name, command) => commands.set(name, command),
+  }
+  const ctx = {
+    ui: { notify: (...args) => notifications.push(args) },
+    sessionManager: {
+      titleSource: "auto",
+      getBranch: () => [
+        { type: "message", message: { role: "user", content: "Fix checkout totals" } },
+      ],
+      getSessionName: () => "Checkout totals",
+      setSessionName: () => assert.fail("unchanged title should not be retitled"),
+    },
+  }
+
+  autoRetitleExtension(pi, {
+    generateTitle: async () => "Checkout totals",
+  })
+
+  await commands.get("retitle").handler([], ctx)
+
+  assert.deepEqual(notifications, [["Session title unchanged", "info"]])
 })
 
 test("generateTitleWithOmp skips when host settings are unavailable", async () => {
