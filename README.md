@@ -28,6 +28,14 @@ There are no optional plugin features today. OMP may still write
 `"enabledFeatures": null` in its plugin lockfile; that means "use default
 features" and is expected.
 
+## Code organization
+
+The implementation is split by concern for readability and low complexity:
+
+- `index.js` wires the OMP extension event and orchestration.
+- `title-context.js` is pure title-context/domain logic.
+- `omp-adapter.js` owns OMP runtime calls and version-coupled internals.
+
 ## Compatibility
 
 This extension intentionally relies on current OMP internals so it can preserve OMP's auto-title semantics:
