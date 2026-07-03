@@ -1,11 +1,12 @@
 # omp-auto-retitle
 
-OMP extension that refreshes auto-generated session titles after compaction.
+Intelligent OMP session title management over time.
 
 ## What it does
 
 - Listens for `session_compact`.
-- Uses the compaction `shortSummary`, falling back to `summary`, as input to OMP's existing session-title generator.
+- Builds title input from the original user request plus compaction history.
+- Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
 
