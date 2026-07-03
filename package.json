@@ -5,7 +5,9 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "release:check": "npm test",
+    "reinstall": "omp plugin install github:klondikemarlen/omp-auto-retitle"
   },
   "repository": {
     "type": "git",

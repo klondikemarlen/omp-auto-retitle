@@ -61,6 +61,29 @@ providers:
   # tinyModel: lfm2-350m # local title model, if you opted into local titling
 ```
 
+## Release checklist
+
+For this repo, "release" means push the GitHub source and reinstall through
+OMP's plugin manager from that remote source.
+
+1. Run the local release check:
+
+   ```sh
+   npm run release:check
+   ```
+
+2. Commit the intended files.
+3. Push `main`.
+4. Reinstall from GitHub:
+
+   ```sh
+   npm run reinstall
+   ```
+
+5. Verify `~/.omp/plugins/node_modules/omp-auto-retitle/package.json` and
+   `~/.omp/plugins/omp-plugins.lock.json` show the intended version.
+6. Restart or reload OMP so the installed extension is loaded.
+
 ## Test
 
 ```sh
