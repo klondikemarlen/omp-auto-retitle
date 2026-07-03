@@ -32,5 +32,8 @@
     "extensions": [
       "./index.js"
     ]
+  },
+  "dependencies": {
+    "@oh-my-pi/pi-coding-agent": "16.3.3"
   }
 }
