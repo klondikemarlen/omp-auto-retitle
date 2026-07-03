@@ -1,6 +1,6 @@
 {
   "name": "omp-auto-retitle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Retitle OMP sessions after compaction.",
   "type": "module",
   "license": "MIT",

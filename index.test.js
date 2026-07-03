@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import {
   canRetitle,
+  generateTitleWithOmp,
   retitleFromCompaction,
   setAutoSessionName,
   titleInputFromCompaction,
@@ -101,4 +102,8 @@ test("retitleFromCompaction skips user-titled sessions before title generation",
     ),
     false,
   )
+})
+
+test("generateTitleWithOmp skips when host settings are unavailable", async () => {
+  assert.equal(await generateTitleWithOmp("Title me", { sessionManager: {} }, undefined), null)
 })

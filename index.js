@@ -2,7 +2,7 @@ export default function autoRetitleExtension(pi) {
   pi.setLabel("Auto Retitle")
 
   pi.on("session_compact", async (event, ctx) => {
-    await retitleFromCompaction(event, ctx)
+    await retitleFromCompaction(event, ctx, { pi })
   })
 }
 
@@ -16,7 +16,7 @@ export async function retitleFromCompaction(event, ctx, options = {}) {
     return false
   }
 
-  const title = await (options.generateTitle ?? generateTitleWithOmp)(input, ctx)
+  const title = await (options.generateTitle ?? generateTitleWithOmp)(input, ctx, options.pi)
   if (!title) {
     return false
   }
@@ -46,12 +46,13 @@ export async function setAutoSessionName(sessionManager, title) {
   return sessionManager.setSessionName(title, "auto", "omp-auto-retitle:session_compact")
 }
 
-export async function generateTitleWithOmp(input, ctx) {
-  const [{ generateSessionTitle }, { settings }] = await Promise.all([
-    import("@oh-my-pi/pi-coding-agent/utils/title-generator"),
-    import("@oh-my-pi/pi-coding-agent"),
-  ])
+export async function generateTitleWithOmp(input, ctx, pi) {
+  const settings = pi?.pi?.settings
+  if (!settings) {
+    return null
+  }
 
+  const { generateSessionTitle } = await import("@oh-my-pi/pi-coding-agent/utils/title-generator")
   return generateSessionTitle(
     input,
     ctx.modelRegistry,
