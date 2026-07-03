@@ -1,6 +1,7 @@
+import { generateSessionTitle } from "@oh-my-pi/pi-coding-agent/utils/title-generator"
+
 const AUTO_TITLE_SOURCE = "auto"
 const RETITLE_TRIGGER = "omp-auto-retitle:session_compact"
-const TITLE_GENERATOR_MODULE = "@oh-my-pi/pi-coding-agent" + "/utils/title-generator"
 
 export function canRetitle(sessionManager) {
   const source = sessionManager?.titleSource
@@ -27,16 +28,11 @@ export async function generateTitleWithOmp(input, ctx, pi) {
     return null
   }
 
-  try {
-    const { generateSessionTitle } = await import(TITLE_GENERATOR_MODULE)
-    return generateSessionTitle(
-      input,
-      ctx.modelRegistry,
-      settings,
-      ctx.sessionManager?.getSessionId?.(),
-      ctx.model,
-    )
-  } catch {
-    return null
-  }
+  return generateSessionTitle(
+    input,
+    ctx.modelRegistry,
+    settings,
+    ctx.sessionManager?.getSessionId?.(),
+    ctx.model,
+  )
 }
