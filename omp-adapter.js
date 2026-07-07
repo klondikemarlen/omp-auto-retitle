@@ -10,7 +10,9 @@ export function canRetitle(sessionManager) {
 }
 
 export async function setAutoSessionName(sessionManager, title) {
-  if (sessionManager?.getSessionName?.() === title) {
+  const normalizedTitle = typeof title === "string" ? title.trim() : ""
+
+  if (!normalizedTitle || sessionManager?.getSessionName?.() === normalizedTitle) {
     return false
   }
 
@@ -18,7 +20,7 @@ export async function setAutoSessionName(sessionManager, title) {
     return false
   }
 
-  const result = await sessionManager.setSessionName(title, AUTO_TITLE_SOURCE, RETITLE_TRIGGER)
+  const result = await sessionManager.setSessionName(normalizedTitle, AUTO_TITLE_SOURCE, RETITLE_TRIGGER)
   return result !== false
 }
 

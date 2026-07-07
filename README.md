@@ -5,7 +5,7 @@ Intelligent OMP session title management over time.
 ## What it does
 
 - Listens for `session_compact`.
-- Builds title input from the original user request plus compaction history.
+- Builds title input from the original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
@@ -19,11 +19,12 @@ This plugin is for intelligent session title management over time. It is not jus
 The title context is built from:
 
 - the first meaningful user request, as the session's original task anchor
+- recent user context, so later clarifications, final deliverables, and explicit title feedback can steer the title
 - recent compaction summaries, as the session's task history
 
-It intentionally ignores raw recent user turns for title scope, because narrow
-maintenance requests like "set package version to 0.7" should not become the
-whole session title unless that is reflected in the broader compaction history.
+The title prompt asks OMP's generator to prefer durable user goals over
+temporary implementation details, so narrow maintenance requests like "set
+package version to 0.7" do not become the whole session title by themselves.
 
 For trust and stability, automatic retitling stays tied to `session_compact`.
 Retitling on every user prompt would increase churn and let narrow subtasks

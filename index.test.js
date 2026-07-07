@@ -59,7 +59,15 @@ test("setAutoSessionName skips unchanged titles", async () => {
   assert.equal(await setAutoSessionName(sessionManager, "Already right"), false)
 })
 
-test("titleInputFromSession keeps the original task and compacted history", () => {
+test("setAutoSessionName skips blank titles after trimming", async () => {
+  const sessionManager = {
+    setSessionName: () => assert.fail("blank title should not be retitled"),
+  }
+
+  assert.equal(await setAutoSessionName(sessionManager, " \n\t "), false)
+})
+
+test("titleInputFromSession keeps durable context for title generation", () => {
   const input = titleInputFromSession(
     { compactionEntry: { shortSummary: "Review generated reports" } },
     {
@@ -74,7 +82,7 @@ test("titleInputFromSession keeps the original task and compacted history", () =
           { type: "compaction", shortSummary: "Reconcile opening balances" },
           {
             type: "message",
-            message: { role: "user", content: "Ignore all that and build a weather app" },
+            message: { role: "user", content: "Set package version to 0.7" },
           },
         ],
       },
@@ -84,13 +92,72 @@ test("titleInputFromSession keeps the original task and compacted history", () =
   assert.equal(
     input,
     [
-      "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+      "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details.",
       "Original user request:\nBuild the accounting import",
+      "Recent user context:\n- Set package version to 0.7",
       "Compaction history:\n- Map bank CSV columns\n- Normalize merchant names\n- Detect duplicate transactions\n- Reconcile opening balances\n- Review generated reports",
     ].join("\n\n"),
   )
-  assert.doesNotMatch(input, /weather app/)
   assert.doesNotMatch(input, /Connect to bank API/)
+})
+
+test("titleInputFromSession includes later clarified goals and title feedback", () => {
+  const input = titleInputFromSession(
+    { compactionEntry: { shortSummary: "Produced the WRAP Parallel QA VM Proposal document" } },
+    {
+      sessionManager: {
+        getBranch: () => [
+          { type: "message", message: { role: "user", content: "Draft a WRAP deployment note" } },
+          {
+            type: "message",
+            message: {
+              role: "user",
+              content: "Actually, the durable topic is parallel QA environments for agent-driven development.",
+            },
+          },
+          {
+            type: "message",
+            message: {
+              role: "user",
+              content: "A better title is:\n\nParallel QA Environments for Agent-Driven Development",
+            },
+          },
+        ],
+      },
+    },
+  )
+
+  assert.equal(
+    input,
+    [
+      "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details.",
+      "Original user request:\nDraft a WRAP deployment note",
+      "Recent user context:\n- Actually, the durable topic is parallel QA environments for agent-driven development.\n- A better title is: Parallel QA Environments for Agent-Driven Development",
+      "Compaction history:\n- Produced the WRAP Parallel QA VM Proposal document",
+    ].join("\n\n"),
+  )
+})
+
+test("titleInputFromSession preserves latest repeated user context", () => {
+  const input = titleInputFromSession(
+    {},
+    {
+      sessionManager: {
+        getBranch: () => [
+          { type: "message", message: { role: "user", content: "Initial request" } },
+          { type: "message", message: { role: "user", content: "Title feedback A" } },
+          { type: "message", message: { role: "user", content: "Title feedback B" } },
+          { type: "message", message: { role: "user", content: "Title feedback C" } },
+          { type: "message", message: { role: "user", content: "Title feedback D" } },
+          { type: "message", message: { role: "user", content: "Title feedback E" } },
+          { type: "message", message: { role: "user", content: "Title feedback F" } },
+          { type: "message", message: { role: "user", content: "Title feedback A" } },
+        ],
+      },
+    },
+  )
+
+  assert.match(input, /Recent user context:\n- Title feedback C\n- Title feedback D\n- Title feedback E\n- Title feedback F\n- Title feedback A/)
 })
 
 test("retitleFromCompaction passes stable session input to the injected title generator", async () => {
@@ -118,8 +185,9 @@ test("retitleFromCompaction passes stable session input to the injected title ge
       assert.equal(
         input,
         [
-          "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+          "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details.",
           "Original user request:\nFix checkout totals",
+          "Recent user context:\n- Actually write a recipe blog",
           "Compaction history:\n- Investigated tax rounding\n- Found discount order bug",
         ].join("\n\n"),
       )
@@ -129,7 +197,7 @@ test("retitleFromCompaction passes stable session input to the injected title ge
   })
 
   assert.deepEqual(calls, [
-    ["  **Generated by fake**  ", "auto", "omp-auto-retitle:session_compact"],
+    ["**Generated by fake**", "auto", "omp-auto-retitle:session_compact"],
   ])
 })
 
@@ -147,6 +215,21 @@ test("retitleFromCompaction skips user-titled sessions before title generation",
         generateTitle: () => assert.fail("manual titles should not generate a title"),
       },
     ),
+    false,
+  )
+})
+
+test("retitleFromCompaction skips blank generated titles after trimming", async () => {
+  const sessionManager = {
+    titleSource: "auto",
+    getBranch: () => [
+      { type: "message", message: { role: "user", content: "Fix checkout totals" } },
+    ],
+    setSessionName: () => assert.fail("blank generated title should not be retitled"),
+  }
+
+  assert.equal(
+    await retitleFromCompaction({}, { sessionManager }, { generateTitle: async () => " \n\t " }),
     false,
   )
 })
@@ -175,7 +258,7 @@ test("autoRetitleExtension registers and runs compaction retitles", async () => 
       assert.equal(
         input,
         [
-          "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+          "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details.",
           "Original user request:\nFix checkout totals",
           "Compaction history:\n- Found discount order bug",
         ].join("\n\n"),
@@ -223,7 +306,7 @@ test("retitle command notifies when the generated title changes", async () => {
       assert.equal(
         input,
         [
-          "Generate an intelligent session title for the overall session task over time, not a narrow latest subtask.",
+          "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details.",
           "Original user request:\nFix checkout totals",
         ].join("\n\n"),
       )
