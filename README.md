@@ -48,7 +48,7 @@ The implementation is split by concern for readability and low complexity:
 This extension intentionally relies on current OMP internals so it can preserve OMP's auto-title semantics:
 
 - `ctx.sessionManager.setSessionName(title, "auto", trigger)` keeps repeated plugin retitles marked as auto-generated.
-- `@oh-my-pi/pi-coding-agent/utils/title-generator` reuses OMP's existing title generation path, including the configured `providers.tinyModel` value and local/online handling.
+- `@oh-my-pi/pi-coding-agent/utils/title-generator` reuses OMP's existing title generation path, including the configured `providers.tinyModel` value, local/online handling, and marker-based output parsing.
 
 Those are more version-coupled than the public `pi.setSessionName(name)` action.
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 
 import autoRetitleExtension, {
@@ -9,6 +10,13 @@ import autoRetitleExtension, {
   titleInputFromCompaction,
   titleInputFromSession,
 } from "./index.js"
+
+
+test("package pins the coding agent compatibility version", () => {
+  const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"))
+
+  assert.equal(pkg.dependencies["@oh-my-pi/pi-coding-agent"], "16.3.11")
+})
 
 test("titleInputFromCompaction selects the first compaction text for title generation", () => {
   assert.equal(
