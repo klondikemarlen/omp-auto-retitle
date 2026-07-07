@@ -1,6 +1,6 @@
 {
   "name": "omp-auto-retitle",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Intelligent OMP session title management over time.",
   "type": "module",
   "license": "MIT",
