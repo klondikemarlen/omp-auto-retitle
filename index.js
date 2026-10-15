@@ -3,18 +3,9 @@ import {
   generateTitleWithOmp,
   setAutoSessionName,
 } from "./omp-adapter.js"
-import {
-  titleInputFromCompaction,
-  titleInputFromSession,
-} from "./title-context.js"
+import { titleInputFromSession } from "./title-context.js"
 
-export {
-  canRetitle,
-  generateTitleWithOmp,
-  setAutoSessionName,
-  titleInputFromCompaction,
-  titleInputFromSession,
-}
+const pendingRetitles = new WeakMap()
 
 export default function autoRetitleExtension(pi, options = {}) {
   pi.setLabel("Auto Retitle")
@@ -35,7 +26,7 @@ export default function autoRetitleExtension(pi, options = {}) {
 export async function retitleFromCompaction(event, ctx, options = {}) {
   const sessionManager = ctx?.sessionManager
 
-  if (!canRetitle(sessionManager)) {
+  if (!sessionManager || !canRetitle(sessionManager)) {
     return false
   }
 
@@ -44,11 +35,30 @@ export async function retitleFromCompaction(event, ctx, options = {}) {
     return false
   }
 
-  const generateTitle = options.generateTitle ?? generateTitleWithOmp
-  const title = await generateTitle(input, ctx, options.pi)
-  if (!title) {
-    return false
+  const request = {
+    sessionId: sessionManager.getSessionId?.(),
+    leafId: sessionManager.getLeafId?.(),
   }
+  pendingRetitles.set(sessionManager, request)
 
-  return setAutoSessionName(sessionManager, title)
+  try {
+    const generateTitle = options.generateTitle ?? generateTitleWithOmp
+    const title = await generateTitle(input, ctx, options.pi)
+
+    if (
+      !title ||
+      pendingRetitles.get(sessionManager) !== request ||
+      sessionManager.getSessionId?.() !== request.sessionId ||
+      sessionManager.getLeafId?.() !== request.leafId ||
+      !canRetitle(sessionManager)
+    ) {
+      return false
+    }
+
+    return await setAutoSessionName(sessionManager, title)
+  } finally {
+    if (pendingRetitles.get(sessionManager) === request) {
+      pendingRetitles.delete(sessionManager)
+    }
+  }
 }
