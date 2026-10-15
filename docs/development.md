@@ -21,6 +21,16 @@ Keep regression assertions about consumer-visible behavior and invariants. Do no
 
 For a lifecycle change, control promise completion explicitly rather than sleeping. For context changes, fill all sections to their limits and verify that the final compaction still reaches the generator's accepted input. Live title wording is nondeterministic; assert intent and source ownership, not one exact phrase.
 
+When the shared `marlens-skills-rules-and-tools` package is installed, test changes
+also require its [test-alignment verifier](https://github.com/klondikemarlen/marlens-skills-rules-and-tools/blob/main/docs/references/test-alignment-verifier-reference.md).
+This structural gate is separate from passing behavioral tests. Run it before
+committing local changes and against the PR base before merge:
+
+```sh
+MARLENS_TEST_ALIGNMENT_BASE=origin/main \
+  node ~/.omp/plugins/node_modules/marlens-skills-rules-and-tools/verifications/test-alignment.mjs
+```
+
 ## Fresh-process smoke scenarios
 
 Tests do not prove that the installed OMP binary exposes the required internal API. Exercise an actual process before release. For local-source QA, `omp --no-extensions -e ./index.js` loads only this extension and avoids a duplicate installed command. Use a disposable session and do not alter normal model/provider configuration.
@@ -37,7 +47,7 @@ A provider-unavailable result is not successful generation evidence. Report whic
 This repository's distribution source is GitHub, not npm. Keep implementation/QA evidence in the linked issue and PR rather than committing transient execution reports. The workflow may stage and commit scoped implementation, tests, documentation, and release metadata in separate cohesive commits.
 
 1. Create an issue with acceptance criteria, an issue-named topic branch in the current checkout, and a linked draft PR against `main`. Preserve user-owned changes and branches.
-2. Implement and update `package.json` plus the [changelog](/CHANGELOG.md) on the topic branch. Run `npm run release:check`, complete self-review and focused runtime QA, and resolve actionable feedback. Update the PR's existing evidence in place.
+2. Implement and update `package.json` plus the [changelog](/CHANGELOG.md) on the topic branch. Run `npm run release:check` and applicable shared verification gates before merging, complete self-review and focused runtime QA, and resolve actionable feedback. Update the PR's existing evidence in place.
 3. Merge with a merge commit after applicable checks/review requirements pass. Verify the intended version is in the merged GitHub source before installing; do not commit directly to `main`.
 4. Uninstall the old package, then install the merged remote source:
 

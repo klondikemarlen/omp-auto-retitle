@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.8
+
+### Changed
+
+- Align behavioral tests with shared naming and Arrange/Act/Assert conventions without changing runtime behavior.
+- Document the separate test-alignment gate so passing behavioral tests is not mistaken for complete pre-merge verification.
+
 ## 0.7.7
 
 ### Fixed
