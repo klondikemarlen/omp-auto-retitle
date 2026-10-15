@@ -35,13 +35,11 @@ There are no optional plugin features today. OMP may still write
 `"enabledFeatures": null` in its plugin lockfile; that means "use default
 features" and is expected.
 
-## Code organization
+## Maintainer knowledge base
 
-The implementation is split by concern for readability and low complexity:
-
-- `index.js` wires the OMP extension event and orchestration.
-- `title-context.js` is pure title-context/domain logic.
-- `omp-adapter.js` owns OMP runtime calls and version-coupled internals.
+See the [knowledge base](/docs/README.md) for the behavioral contract, architecture
+and language decisions, compatibility boundaries, and development/QA procedures.
+The implementation remains three JavaScript ES modules with no build step.
 
 ## Compatibility
 
@@ -68,28 +66,12 @@ providers:
   # tinyModel: lfm2-350m # local title model, if you opted into local titling
 ```
 
-## Release checklist
+## Release
 
-For this repo, "release" means push the GitHub source and reinstall through
-OMP's plugin manager from that remote source.
-
-1. Run the local release check:
-
-   ```sh
-   npm run release:check
-   ```
-
-2. Commit the intended files.
-3. Push `main`.
-4. Reinstall from GitHub:
-
-   ```sh
-   npm run reinstall
-   ```
-
-5. Verify `~/.omp/plugins/node_modules/omp-auto-retitle/package.json` and
-   `~/.omp/plugins/omp-plugins.lock.json` show the intended version.
-6. Restart or reload OMP so the installed extension is loaded.
+Releases are merged GitHub source, installed through OMP's plugin manager rather
+than npm. Follow the [release procedure](/docs/development.md#release-from-github-source),
+including uninstall/reinstall, version verification, and behavior/autocomplete QA
+in a new OMP process. See the [changelog](/CHANGELOG.md) for behavior changes.
 
 ## Test
 

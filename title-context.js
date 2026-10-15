@@ -1,6 +1,10 @@
 const MAX_COMPACTION_HISTORY = 5
 const MAX_USER_CONTEXT = 5
-const MAX_USER_CONTEXT_LENGTH = 240
+// OMP truncates title input at 2,000 characters. These section budgets keep
+// all three sources visible even with five maximum-length entries per list.
+const MAX_ORIGINAL_TASK_LENGTH = 240
+const MAX_USER_CONTEXT_LENGTH = 160
+const MAX_COMPACTION_SUMMARY_LENGTH = 120
 const TITLE_INSTRUCTION =
   "Generate an intelligent session title for the overall session task over time. Prefer durable user goals, final deliverables, repeated concepts, and explicit title feedback over temporary implementation details."
 
@@ -19,7 +23,8 @@ export function titleInputFromSession(event, ctx) {
 }
 
 export function titleInputFromCompaction(entry) {
-  return firstText(entry?.shortSummary) || firstText(entry?.summary)
+  return compactText(entry?.shortSummary, MAX_COMPACTION_SUMMARY_LENGTH) ||
+    compactText(entry?.summary, MAX_COMPACTION_SUMMARY_LENGTH)
 }
 
 function titlePrompt(originalTask, userContext, summaries) {
@@ -32,16 +37,18 @@ function titlePrompt(originalTask, userContext, summaries) {
 }
 
 function recentUniqueCompactionSummaries(entries, currentCompactionEntry) {
-  return unique([
+  return latestUnique([
     ...compactionSummaries(entries),
     titleInputFromCompaction(currentCompactionEntry),
-  ].filter(Boolean)).slice(-MAX_COMPACTION_HISTORY)
+  ].filter(Boolean), MAX_COMPACTION_HISTORY)
 }
 
 function firstUserMessage(entries) {
   for (const entry of entries) {
     const text = userMessageText(entry)
-    if (text) return text
+    if (text) {
+      return text
+    }
   }
 
   return ""
@@ -52,7 +59,7 @@ function userMessageText(entry) {
     return ""
   }
 
-  return firstText(messageText(entry.message))
+  return compactText(messageText(entry.message), MAX_ORIGINAL_TASK_LENGTH)
 }
 
 function recentUniqueUserContext(entries) {
@@ -118,25 +125,10 @@ function bulletList(items) {
   return items.map((item) => `- ${item}`).join("\n")
 }
 
-function unique(values) {
-  return [...new Set(values)]
-}
-
-function firstText(value) {
+function compactText(value, limit = MAX_USER_CONTEXT_LENGTH) {
   if (typeof value !== "string") {
     return ""
   }
 
-  return value
-    .split(/\r?\n/)
-    .map((part) => part.trim())
-    .find(Boolean) || ""
-}
-
-function compactText(value) {
-  if (typeof value !== "string") {
-    return ""
-  }
-
-  return value.replace(/\s+/g, " ").trim().slice(0, MAX_USER_CONTEXT_LENGTH)
+  return value.replace(/\s+/g, " ").trim().slice(0, limit)
 }
