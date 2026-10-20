@@ -5,7 +5,7 @@ Intelligent OMP session title management over time.
 ## What it does
 
 - Listens for `session_compact`.
-- Builds title input from the original user request, recent user context, and compaction history.
+- Builds title context from the working-directory name, ticket/PR references, original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
@@ -16,15 +16,29 @@ Intelligent OMP session title management over time.
 This plugin is for intelligent session title management over time. It is not just a
 "rename after compact" hook.
 
-The title context is built from:
+Titles use `repo ticket: task description`, for example:
 
-- the first meaningful user request, as the session's original task anchor
-- recent user context, so later clarifications, final deliverables, and explicit title feedback can steer the title
-- recent compaction summaries, as the session's task history
+- `omp-verifier #150: Reassess advisor repairs`
+- `ledger ACC-42: Reconcile bank imports`
+- `ledger PR#42: Prevent duplicate imports`
+- `ledger: Explain duplicate transactions`
 
-The title prompt asks OMP's generator to prefer durable user goals over
-temporary implementation details, so narrow maintenance requests like "set
-package version to 0.7" do not become the whole session title by themselves.
+The repo/project label comes from the session working-directory basename. GitHub
+issue/PR URLs, short references such as `#150` or `PR #42`, and Jira keys are
+recognized in selected-branch conversation and compaction history. Relevant
+assistant/tool excerpts can supply a ticket or PR description even when the
+user only pasted a link. This does not fetch Jira/GitHub metadata.
+
+The latest explicit user reference takes priority; otherwise the latest
+recognized conversation/summary reference is used. Cross-repository GitHub
+references retain their owner/repository. The identity prefix is added locally,
+so it does not depend on the title model remembering identifiers.
+
+OMP generates the short task description from the original request, recent
+clarifications, and compaction history. Without a ticket, it summarizes the
+actual task or question. It prefers durable user goals over temporary
+implementation details. Description quality still depends on the configured
+title model and the details available in the session.
 
 For trust and stability, automatic retitling stays tied to `session_compact`.
 Retitling on every user prompt would increase churn and let narrow subtasks
