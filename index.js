@@ -3,7 +3,7 @@ import {
   generateTitleWithOmp,
   setAutoSessionName,
 } from "./omp-adapter.js"
-import { titleInputFromSession } from "./title-context.js"
+import { titleContextFromSession, titleWithIdentity } from "./title-context.js"
 
 const pendingRetitles = new WeakMap()
 
@@ -15,7 +15,7 @@ export default function autoRetitleExtension(pi, options = {}) {
   })
 
   pi.registerCommand("retitle", {
-    description: "Regenerate the auto session title from original task and compaction history.",
+    description: "Regenerate the auto title from repository, ticket or PR, and session task.",
     handler: async (_args, ctx) => {
       const changed = await retitleFromCompaction({}, ctx, { ...options, pi })
       ctx.ui?.notify?.(changed ? "Session title regenerated" : "Session title unchanged", "info")
@@ -30,8 +30,8 @@ export async function retitleFromCompaction(event, ctx, options = {}) {
     return false
   }
 
-  const input = titleInputFromSession(event, ctx)
-  if (!input) {
+  const context = titleContextFromSession(event, ctx)
+  if (!context) {
     return false
   }
 
@@ -43,7 +43,8 @@ export async function retitleFromCompaction(event, ctx, options = {}) {
 
   try {
     const generateTitle = options.generateTitle ?? generateTitleWithOmp
-    const title = await generateTitle(input, ctx, options.pi)
+    const description = await generateTitle(context.input, ctx, options.pi)
+    const title = titleWithIdentity(description, context)
 
     if (
       !title ||
