@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { titleInputFromCompaction, titleInputFromSession } from "./title-context.js"
+import { titleInputFromCompaction, titleContextFromSession, titleWithIdentity } from "./title-context.js"
 
 function contextFor(entries) {
   return { sessionManager: { getBranch: () => entries } }
@@ -18,10 +18,10 @@ test("when an original request is multiline, retain the goal after its heading",
   ])
 
   // Act
-  const input = titleInputFromSession({}, ctx)
+  const { input } = titleContextFromSession({}, ctx)
 
   // Assert
-  assert.match(input, /Original user request:\nProject: Build accounting import/)
+  assert.match(input, /Build accounting import/)
 })
 
 test("when a compaction summary is multiline, retain the goal after its heading", () => {
@@ -42,19 +42,29 @@ test("when the short summary is blank, use the full compaction summary", () => {
 
 test("when every context source is long, retain all sources within OMP's input budget", () => {
   // Arrange
-  const ctx = contextFor([
-    userMessage("Original accounting goal " + "O".repeat(3000)),
-    ...Array.from({ length: 5 }, (_, i) => userMessage(`Recent goal ${i} ` + "U".repeat(300))),
-    ...Array.from({ length: 5 }, (_, i) => ({
-      type: "compaction", summary: `Completed deliverable ${i} ` + "C".repeat(3000),
-    })),
-  ])
+  const ctx = {
+    cwd: "/workspace/" + "R".repeat(100),
+    ...contextFor([
+      userMessage("Original accounting goal " + "O".repeat(3000)),
+      ...Array.from({ length: 5 }, (_, i) => userMessage(`Recent goal ${i} ` + "U".repeat(300))),
+      ...Array.from({ length: 5 }, (_, i) => ({
+        type: "compaction", summary: `Completed deliverable ${i} ` + "C".repeat(3000),
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        type: "message",
+        message: { role: "toolResult", content: `https://github.com/acme/bank/issues/${150 + i} ${"D".repeat(300)}` },
+      })),
+    ]),
+  }
 
   // Act
-  const input = titleInputFromSession({}, ctx)
+  const { input } = titleContextFromSession({}, ctx)
 
   // Assert
   assert.ok(input.length <= 2000, `Title prompt exceeds OMP's budget: ${input.length}`)
+  assert.match(input, /bank #150/)
+  assert.match(input, /bank #151/)
+  assert.match(input, /bank #152/)
   assert.match(input, /Original accounting goal/)
   for (let i = 0; i < 5; i += 1) {
     assert.ok(input.includes(`Recent goal ${i}`))
@@ -76,10 +86,11 @@ test("when compaction summaries repeat, retain their latest chronological occurr
   ])
 
   // Act
-  const input = titleInputFromSession(event, ctx)
+  const { input } = titleContextFromSession(event, ctx)
 
   // Assert
-  assert.ok(input.endsWith("Compaction history:\n- Goal C\n- Goal D\n- Goal E\n- Goal F\n- Goal A"))
+  assert.doesNotMatch(input, /Goal B/)
+  assert.match(input, /Goal C[\s\S]*Goal D[\s\S]*Goal E[\s\S]*Goal F[\s\S]*Goal A/)
 })
 
 test("when user feedback repeats, retain its latest chronological occurrences", () => {
@@ -92,13 +103,14 @@ test("when user feedback repeats, retain its latest chronological occurrences", 
   ])
 
   // Act
-  const input = titleInputFromSession({}, ctx)
+  const { input } = titleContextFromSession({}, ctx)
 
   // Assert
-  assert.ok(input.endsWith("Recent user context:\n- Goal C\n- Goal D\n- Goal E\n- Goal F\n- Goal A"))
+  assert.doesNotMatch(input, /Goal B/)
+  assert.match(input, /Goal C[\s\S]*Goal D[\s\S]*Goal E[\s\S]*Goal F[\s\S]*Goal A/)
 })
 
-test("when messages mix roles and content types, include only user text", () => {
+test("when messages mix roles and content types, use user text and relevant work references", () => {
   // Arrange
   const ctx = contextFor([
     userMessage(" \n "),
@@ -111,12 +123,109 @@ test("when messages mix roles and content types, include only user text", () => 
   ])
 
   // Act
-  const input = titleInputFromSession({}, ctx)
+  const { input } = titleContextFromSession({}, ctx)
 
   // Assert
-  assert.match(input, /Original user request:\nBuild accounting import/)
-  assert.match(input, /Recent user context:\n- Final goal: Bank reconciliation/)
+  assert.match(input, /Build accounting import/)
+  assert.match(input, /Final goal: Bank reconciliation/)
   assert.doesNotMatch(input, /noise/)
+})
+
+test("when cwd identifies a project, include its repository name", () => {
+  // Arrange
+  const ctx = { cwd: "/workspace/accounting-import", ...contextFor([userMessage("Build imports")]) }
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /accounting-import/)
+})
+
+test("when cwd is unavailable, use the session manager working directory", () => {
+  // Arrange
+  const ctx = {
+    sessionManager: {
+      getBranch: () => [userMessage("Build imports")],
+      getCwd: () => "/workspace/bank-reconciler",
+    },
+  }
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /bank-reconciler/)
+})
+
+test("when a ticket reference is beyond prose limits, preserve it with its description", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage(`Please update this workflow. ${"Background ".repeat(30)}\nImplement reconciliation import\nhttps://github.com/acme/bank/issues/150`),
+  ])
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /acme\/bank #150/)
+  assert.match(input, /Implement reconciliation import/)
+})
+
+test("when assistant or tool output identifies a pull request, include its evidence", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("Fix bank reconciliation"),
+    { type: "message", message: { role: "assistant", content: "Pull request for the import fix:\nhttps://github.com/acme/bank/pull/42" } },
+    { type: "message", message: { role: "toolResult", content: "Reviewed PR https://github.com/acme/bank/pull/43 for statement matching" } },
+    { type: "tool_call", arguments: { text: "https://github.com/acme/bank/issues/999" } },
+  ])
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /acme\/bank PR#42/)
+  assert.match(input, /acme\/bank PR#43/)
+  assert.doesNotMatch(input, /999/)
+})
+
+test("when selected work switches tickets, exclude references from an abandoned branch", () => {
+  // Arrange
+  const ctx = {
+    sessionManager: {
+      getBranch: () => [
+        userMessage("Implement the current task"),
+        userMessage("Working on https://github.com/acme/bank/issues/202"),
+      ],
+      getEntries: () => [
+        userMessage("Implement the current task"),
+        userMessage("https://github.com/acme/bank/issues/101"),
+      ],
+    },
+  }
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /issues\/202/)
+  assert.doesNotMatch(input, /issues\/101/)
+})
+
+test("when a Jira key is present, retain the key and adjacent task description", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("Build transaction reconciliation"),
+    { type: "compaction", summary: "Completed initial analysis\nFIN-314 Improve import matching for bank statements" },
+  ])
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /FIN-314/)
+  assert.match(input, /Improve import matching for bank statements/)
 })
 
 test("when history contains abandoned branches, use only the selected branch", () => {
@@ -127,17 +236,124 @@ test("when history contains abandoned branches, use only the selected branch", (
   } }
 
   // Act
-  const input = titleInputFromSession({}, ctx)
+  const { input } = titleContextFromSession({}, ctx)
 
   // Assert
   assert.match(input, /Current branch goal/)
   assert.doesNotMatch(input, /Abandoned goal/)
 })
 
-test("when the session is empty, return no title input", () => {
+test("when the session is empty, cwd alone does not create title input", () => {
   // Arrange
-  const ctx = contextFor([])
+  const ctx = { cwd: "/workspace/bank-reconciler", ...contextFor([]) }
 
   // Act / Assert
-  assert.equal(titleInputFromSession({}, ctx), "")
+  assert.equal(titleContextFromSession({}, ctx), null)
+})
+
+test("when later tools mention incidental tickets, preserve the user's selected work", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("Context ".repeat(100) + "\nFIN-314 Reconcile bank statements"),
+    ...Array.from({ length: 5 }, (_, i) => ({
+      type: "message",
+      message: { role: "toolResult", content: `https://github.com/acme/bank/issues/${i + 10} Related backlog` },
+    })),
+  ])
+
+  // Act
+  const context = titleContextFromSession({}, ctx)
+  const title = titleWithIdentity("Reconcile bank statements", context)
+
+  // Assert
+  assert.equal(title, "FIN-314: Reconcile bank statements")
+})
+
+test("when the triggering summary is not yet in history, retain its late ticket details", () => {
+  // Arrange
+  const ctx = contextFor([userMessage("Review the remaining work")])
+  const event = { compactionEntry: { summary: "Background ".repeat(100) + "\nFIN-314 Reconcile bank statements" } }
+
+  // Act
+  const { input } = titleContextFromSession(event, ctx)
+
+  // Assert
+  assert.match(input, /FIN-314:.*Reconcile bank statements/)
+})
+
+test("when the model omits identifiers, retain repository and Jira identity in the title", () => {
+  // Arrange
+  const ctx = { cwd: "/workspace/ledger", ...contextFor([userMessage("Implement ACC-42: Reconcile bank imports")]) }
+  const context = titleContextFromSession({}, ctx)
+
+  // Act
+  const title = titleWithIdentity("Reconcile bank imports", context)
+
+  // Assert
+  assert.equal(title, "ledger ACC-42: Reconcile bank imports")
+})
+
+test("when there is no ticket, title the question with its repository", () => {
+  // Arrange
+  const ctx = { cwd: "/workspace/ledger", ...contextFor([userMessage("How do duplicate transactions happen?")]) }
+  const context = titleContextFromSession({}, ctx)
+
+  // Act
+  const title = titleWithIdentity("Explain duplicate transactions", context)
+
+  // Assert
+  assert.equal(title, "ledger: Explain duplicate transactions")
+})
+
+test("when generation is blank, do not turn identity alone into a title", () => {
+  // Arrange
+  const context = { repository: "ledger", reference: "ACC-42" }
+
+  // Act / Assert
+  assert.equal(titleWithIdentity(" \n ", context), "")
+})
+
+test("when a GitHub issue belongs to the working repository, keep its compact identity", () => {
+  // Arrange
+  const ctx = { cwd: "/workspace/omp-verifier", ...contextFor([
+    userMessage("Review https://github.com/acme/omp-verifier/issues/150"),
+  ]) }
+  const context = titleContextFromSession({}, ctx)
+
+  // Act
+  const title = titleWithIdentity("Reassess advisor repairs", context)
+
+  // Assert
+  assert.equal(title, "omp-verifier #150: Reassess advisor repairs")
+})
+
+test("when a user names a pull request without a URL, retain its identity", () => {
+  // Arrange
+  const ctx = { cwd: "/workspace/ledger", ...contextFor([
+    userMessage("Review PR #42 for duplicate imports"),
+  ]) }
+  const context = titleContextFromSession({}, ctx)
+
+  // Act
+  const title = titleWithIdentity("Prevent duplicate imports", context)
+
+  // Assert
+  assert.equal(title, "ledger PR#42: Prevent duplicate imports")
+})
+
+test("when a reference follows long single-line background, retain the nearby task description", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("Review the current issue"),
+    { type: "message", message: {
+      role: "toolResult",
+      content: "Background ".repeat(100) + "https://github.com/acme/bank/issues/150 Reconcile statement imports",
+    } },
+  ])
+
+  // Act
+  const { input } = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.match(input, /acme\/bank #150: Reconcile statement imports/)
 })

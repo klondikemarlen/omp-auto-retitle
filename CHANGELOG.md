@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+### Changed
+
+- Identify sessions with a deterministic repository and Jira/GitHub issue or PR prefix, followed by a generated task or question description.
+- Retain bounded ticket/PR excerpts from selected-branch conversation and tool results, including descriptions beyond the old prose-prefix limits.
+- Supply task-description guidance through OMP's title-specific system prompt without changing model selection or local/online policy.
+
 ## 0.7.8
 
 ### Changed

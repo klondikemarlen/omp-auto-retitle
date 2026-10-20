@@ -6,7 +6,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { retitleFromCompaction } from "./index.js"
 
 function sessionWithTask() {
-  const session = SessionManager.inMemory()
+  const session = SessionManager.inMemory("/workspace/accounting")
   session.appendMessage({ role: "user", content: "Build accounting import", timestamp: 0 })
   return session
 }
@@ -21,7 +21,7 @@ test("when a title is generated, persist its normalized auto-owned value", async
   })
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "Accounting import")
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
   assert.equal(sessionManager.titleSource, "auto")
 })
 
@@ -41,7 +41,7 @@ test("when generations complete out of order, keep the latest request's title", 
   await older
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "Latest accounting goal")
+  assert.equal(sessionManager.getSessionName(), "accounting: Latest accounting goal")
 })
 
 test("when a newer request produces no title, discard an older request's result", async () => {
@@ -130,7 +130,7 @@ test("when the title is manually owned, skip generation entirely", async () => {
 test("when the generated title is unchanged, preserve title history", async () => {
   // Arrange
   const sessionManager = sessionWithTask()
-  await sessionManager.setSessionName("Accounting import", "auto")
+  await sessionManager.setSessionName("accounting: Accounting import", "auto")
   const entries = sessionManager.getEntries()
 
   // Act
@@ -171,7 +171,7 @@ test("when separate sessions retitle concurrently, keep their requests independe
   await pending
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "Accounting import")
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
 })
 
 test("when generation fails, propagate the error and allow a later retitle", async () => {
@@ -188,5 +188,5 @@ test("when generation fails, propagate the error and allow a later retitle", asy
   await retitleFromCompaction({}, { sessionManager }, {
     generateTitle: async () => "Accounting import",
   })
-  assert.equal(sessionManager.getSessionName(), "Accounting import")
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
 })

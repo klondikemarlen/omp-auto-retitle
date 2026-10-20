@@ -7,24 +7,28 @@ A session title should identify the durable task in session history, not the mos
 ## Responsibilities
 
 - `index.js`: event/command registration, asynchronous request ownership, and eligibility checks before committing a generated title.
-- `title-context.js`: pure selection and normalization of session context. It has no runtime imports, configuration, persistence, or model calls.
-- `omp-adapter.js`: the version-coupled OMP generator, settings access, title normalization, and auto-source persistence.
+- `title-context.js`: pure selection, identity extraction, bounded model input, and final title composition. It has no runtime imports, configuration, persistence, or model calls.
+- `omp-adapter.js`: the version-coupled OMP generator, task-description system instruction, settings access, title normalization, and auto-source persistence.
 
 Dependencies point from orchestration to the two leaves. Import helpers from their owning module rather than re-exporting them through the extension entry point. The generator injection used by orchestration tests is not a plugin configuration option.
 
 ## Title context
 
-Read the selected branch through `getBranch()`, falling back to `getEntries()` only when the branch API is unavailable. Assistant/tool messages and non-text content do not contribute.
+Read the selected branch through `getBranch()`, falling back to `getEntries()` only when the branch API is unavailable. Text content contributes; non-text blocks and tool-call arguments do not.
 
 1. The first nonblank user message anchors the original task.
 2. Up to five subsequent unique user messages retain recent clarification and title feedback.
 3. Up to five unique compaction summaries retain task history, including the triggering compaction if it is not yet present in the branch.
+4. The session working-directory basename supplies the repository/project label (`ctx.cwd`, falling back to the session manager). This is a folder label, not a Git remote lookup; starting inside a subdirectory uses that subdirectory's name.
+5. Scan full selected-branch user, assistant, tool-result, and summary text for GitHub issue/pull URLs, short issue/PR references, and Jira keys before applying prose-prefix limits. Retain up to three bounded reference excerpts with nearby description text. These are evidence, not instructions or fetched metadata.
 
-Both recent lists retain the latest occurrence of repeated normalized text, then render chronologically. A summary uses nonblank `shortSummary` before `summary`. Normalize whitespace across the entire selected text, rather than discarding everything after its first line. This preserves goals following headings; it is not Markdown parsing or semantic extraction.
+Both recent prose lists retain the latest occurrence of repeated normalized text, then render chronologically. A summary uses nonblank `shortSummary` before `summary`. Normalize whitespace across the entire selected text, rather than discarding everything after its first line.
 
-OMP's pinned title generator truncates input at 2,000 JavaScript string characters. The plugin allocates 240 characters to the original task, 160 to each recent user message, and 120 to each summary. Including the current instruction and section labels, the maximum prompt is 1,948 characters. This intentionally trades detail within each item for representation of every context source. Deduplication occurs after normalization and truncation, so texts with identical retained prefixes count as the same context.
+The latest explicit user reference supplies the title identity; without one, use the latest recognized reference from the selected conversation or summaries. Keep that evidence first, alongside up to two other recent unique excerpts. This is a local heuristic, not remote ticket-state resolution: ambiguous conversations can still need user clarification. GitHub references in other repositories retain owner/repository; same-repository references use `#number` or `PR#number`.
 
-Changing the instruction, labels, limits, or counts requires exercising the maximum-size regression; otherwise a plausible-looking prompt can silently lose its newest context upstream. The budget is not a token estimate or a guaranteed title-quality score.
+OMP's pinned title generator truncates input at 2,000 JavaScript string characters. Section budgets are 80 characters for the repository, 200 for the original request, 120 per recent user message, 100 per summary, and 130 per reference excerpt. With all slots full and current labels, the maximum input is 1,912 characters. Changing labels, limits, or counts requires exercising the maximum-size regression so the newest context cannot disappear upstream.
+
+The adapter uses OMP's supported custom title system prompt to ask for the actual task/question description rather than generic workflow labels. The pure composer then adds `repository reference: description`, omitting absent identity fields. This deterministic prefix is required because a title model may omit identifiers despite instructions. Blank generation still means no rename, never an identity-only title. Task descriptions remain model-dependent; no provider fallback, metadata fetching, or quality retry is added.
 
 ## Asynchronous ownership and persistence
 
@@ -44,7 +48,7 @@ The adapter intentionally uses three internal surfaces:
 - `pi.pi.settings` for the active host settings, including `providers.tinyModel`.
 - The session manager's source-aware setter and session/leaf identity methods.
 
-The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. An upgrade needs source inspection and fresh-process QA because internal imports and exposed settings may change independently. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.11.1` was exercised with this integration; this is not a claim that every intermediate or future release is supported.
+The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. An upgrade needs source inspection and fresh-process QA because internal imports and exposed settings may change independently. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.12.4` was exercised with this integration; this is not a claim that every intermediate or future release is supported.
 
 The plugin never picks a model. OMP's existing generator owns configured tiny-role/model resolution, local-vs-online behavior, authentication, and output validation. Preserve that delegation; do not add an online fallback to local generation or change user routes to make QA pass. Missing host settings or no generated title means no rename.
 
