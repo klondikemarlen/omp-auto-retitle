@@ -172,6 +172,45 @@ test("when a ticket reference is beyond prose limits, preserve it with its descr
   assert.match(input, /Implement reconciliation import/)
 })
 
+test("when feedback mentions an image after the real issue, keep the issue reference", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("Improve https://github.com/acme/omp-auto-retitle/issues/8\n[Image #1] observe this title before/after"),
+  ])
+
+  // Act
+  const context = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.equal(context.reference, "acme/omp-auto-retitle #8")
+})
+
+test("when feedback contains only an image label, do not treat its index as a ticket", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("[Image #1, 1568x1231] observe this title before/after"),
+  ])
+
+  // Act
+  const context = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.equal(context.reference, "")
+})
+
+test("when an attachment label precedes a genuine short reference on the same line, keep the reference", () => {
+  // Arrange
+  const ctx = contextFor([
+    userMessage("[Screenshot #1, 1568x1231] compare this with issue #8"),
+  ])
+
+  // Act
+  const context = titleContextFromSession({}, ctx)
+
+  // Assert
+  assert.equal(context.reference, "#8")
+})
+
 test("when assistant or tool output identifies a pull request, include its evidence", () => {
   // Arrange
   const ctx = contextFor([
