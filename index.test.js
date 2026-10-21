@@ -491,3 +491,92 @@ test("when an older title write finishes late, preserve the newer repair cache",
   // Assert
   assert.equal(sessionManager.getSessionName(), "accounting: Latest task")
 })
+
+test("when conversation progress defers an auto overwrite, repair at the same-task turn boundary", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Accounting task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+  sessionManager.appendMessage({ role: "user", content: "Continue checking UUID creation", timestamp: 1 })
+  await sessionManager.setSessionName("PARK: Keep UUIDs at group creation", "auto", "replan")
+
+  // Act
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+  assert.equal(generations, 1)
+  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:settled-repair")
+})
+
+test("when deferred repair is followed by a ticket change, commit the new task instead", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const harness = extensionHarness(async () => "Accounting import")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+  sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching", timestamp: 1 })
+  await sessionManager.setSessionName("Native generic title", "auto", "replan")
+
+  // Act
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Fix transaction matching")
+  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:task")
+})
+
+test("when status inspects a deferred overwrite, report its cause without changing history", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Accounting task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+  sessionManager.appendMessage({ role: "user", content: "Continue checking the task", timestamp: 1 })
+  await sessionManager.setSessionName("Native generic title", "auto", "replan")
+  const entries = sessionManager.getEntries().slice()
+
+  // Act
+  await harness.commands.get("retitle").handler("status", ctx)
+
+  // Assert
+  assert.deepEqual(sessionManager.getEntries(), entries)
+  assert.equal(generations, 1)
+  assert.match(harness.notifications.at(-1)[0], /Skipped: conversation advanced/)
+  assert.match(harness.notifications.at(-1)[0], /auto \| replan \| Native generic title/)
+})
+
+test("when status inspects a manual title, report protected ownership without generation", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  await sessionManager.setSessionName("My chosen title", "user")
+  const harness = extensionHarness(() => assert.fail("Status must not generate a title"))
+  const ctx = harness.ctx(sessionManager)
+  harness.handlers.get("session_start")({}, ctx)
+
+  // Act
+  await harness.commands.get("retitle").handler("status", ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "My chosen title")
+  assert.match(harness.notifications.at(-1)[0], /Ownership: user/)
+  assert.match(harness.notifications.at(-1)[0], /Repair eligibility: manual title ownership/)
+})
+
+test("when a retitle argument is unknown, report usage without renaming", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const harness = extensionHarness(() => assert.fail("Unknown actions must not generate"))
+  const ctx = harness.ctx(sessionManager)
+  const entries = sessionManager.getEntries().slice()
+
+  // Act
+  await harness.commands.get("retitle").handler("stats", ctx)
+
+  // Assert
+  assert.deepEqual(sessionManager.getEntries(), entries)
+  assert.match(harness.notifications.at(-1)[0], /Usage: \/retitle \[status\]/)
+})
