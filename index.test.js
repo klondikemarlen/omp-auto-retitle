@@ -430,3 +430,64 @@ test("when only title history changes during generation, keep the request fresh"
   assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
   assert.equal(sessionManager.getEntries().filter((entry) => entry.type === "title_change").length, 2)
 })
+
+test("when a ticket supplies a subject, retain it across replans without a model call", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching. Acknowledge with ready.", timestamp: 1 })
+  const harness = extensionHarness(() => assert.fail("An explicit ticket subject does not need generation"))
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "For ACC-43, initialize the investigation plan", timestamp: 2 })
+  harness.handlers.get("tool_result")({ toolName: "todo", isError: false, details: { op: "init" } }, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Fix transaction matching")
+})
+
+test("when the active ticket changes, do not reuse another ticket's explicit subject", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-42: Fix bank imports", timestamp: 1 })
+  const harness = extensionHarness(async () => "Explain transaction isolation")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Now work on ACC-43", timestamp: 2 })
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Explain transaction isolation")
+})
+
+test("when an older title write finishes late, preserve the newer repair cache", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const written = Promise.withResolvers()
+  const persisted = Promise.withResolvers()
+  const setName = sessionManager.setSessionName.bind(sessionManager)
+  sessionManager.setSessionName = async (...args) => {
+    const changed = await setName(...args)
+    if (args[0] === "accounting: Original task") {
+      written.resolve()
+      await persisted.promise
+    }
+    return changed
+  }
+  const ctx = { sessionManager }
+  const older = retitleSession({}, ctx, { generateTitle: async () => "Original task" })
+  await written.promise
+  await retitleSession({}, ctx, { generateTitle: async () => "Latest task" })
+
+  // Act
+  persisted.resolve()
+  await older
+  await sessionManager.setSessionName("Native generic title", "auto", "replan")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting: Latest task")
+})

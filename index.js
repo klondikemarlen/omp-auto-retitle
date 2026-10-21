@@ -92,7 +92,10 @@ export async function retitleSession(event, ctx, options = {}, reason = "command
 
   try {
     const generateTitle = options.generateTitle ?? generateTitleWithOmp
-    const description = await generateTitle(context.input, ctx, options.pi)
+    let description = context.subject
+    if (!description) {
+      description = await generateTitle(context.input, ctx, options.pi)
+    }
     const title = titleWithIdentity(description, context)
 
     if (
@@ -106,7 +109,14 @@ export async function retitleSession(event, ctx, options = {}, reason = "command
     }
 
     const changed = await setAutoSessionName(sessionManager, title, `${PLUGIN_TRIGGER_PREFIX}${reason}`)
-    if (lifecycle) {
+    if (
+      lifecycle &&
+      pendingRetitles.get(sessionManager) === request &&
+      sessionManager.getSessionId?.() === request.sessionId &&
+      conversationLeafId(sessionManager) === request.leafId &&
+      canRetitle(sessionManager) &&
+      sessionManager.getSessionName?.() === title
+    ) {
       lifecycle.accepted = {
         title,
         input: context.input,

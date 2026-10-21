@@ -30,8 +30,9 @@ export function titleContextFromSession(event, ctx) {
   return {
     input: titlePrompt(repository, workEvidence.map((item) => item.text), originalTask, userContext, summaries),
     repository,
-    reference: titleReference(workEvidence[0], repository),
+    reference: titleReference(workEvidence.at(-1), repository),
     originalTask,
+    subject: workEvidence.at(-1)?.subject ?? "",
   }
 }
 
@@ -58,10 +59,10 @@ function titleReference(evidence, repository) {
 function titlePrompt(repository, workEvidence, originalTask, userContext, summaries) {
   return [
     repository && section("Repository", repository),
-    workEvidence.length > 0 && section("Relevant issue or PR", bulletList(workEvidence)),
     originalTask && section("Original user request", originalTask),
     userContext.length > 0 && section("Recent user context", bulletList(userContext)),
     summaries.length > 0 && section("Compaction history", bulletList(summaries)),
+    workEvidence.length > 0 && section("Relevant issue or PR", bulletList(workEvidence)),
   ].filter(Boolean).join("\n\n")
 }
 
@@ -166,9 +167,13 @@ function selectedBranchWorkEvidence(entries) {
 
   // Keep the latest explicit user reference even when later tool output is noisy.
   const selected = userEvidence.at(-1) ?? evidence.at(-1)
+  if (selected) {
+    selected.subject = evidence.findLast((item) => item.reference === selected.reference && item.subject)?.subject ?? ""
+  }
+
   const otherTexts = evidence.filter((item) => item !== selected).map((item) => item.text)
   const recentTexts = latestUnique(otherTexts, MAX_WORK_EVIDENCE - 1)
-  return [selected, ...recentTexts.map((text) => evidence.findLast((item) => item.text === text))].filter(Boolean)
+  return [...recentTexts.map((text) => evidence.findLast((item) => item.text === text)), selected].filter(Boolean)
 }
 
 function workEvidenceText(entry) {
@@ -228,6 +233,7 @@ function compactEvidence(line, description) {
     reference,
     repository: github?.[2],
     shortReference,
+    subject: compactText(after.match(/^\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)/)?.[1], MAX_USER_CONTEXT_LENGTH),
     text: compactText(`${reference}: ${details}`, MAX_WORK_EVIDENCE_LENGTH),
   }
 }
