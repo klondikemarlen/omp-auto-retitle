@@ -9,7 +9,7 @@ Intelligent OMP session title management over time.
 - Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
-- Adds `/retitle` for on-demand verification without retitling on every prompt.
+- Adds `/retitle` for on-demand refresh and read-only `/retitle status` for loaded-version and title diagnostics.
 
 ## Scope
 
@@ -49,15 +49,23 @@ and after compaction. Ordinary follow-ups with unchanged task identity do not
 call the title model again. A different no-ticket goal can be introduced through
 a replan or refreshed explicitly with `/retitle`.
 
-OMP can still generate its own initial/replan titles. If a late native auto
-write replaces a current plugin title, the plugin restores its accepted title
-without another model call. It never restores a title across changed conversation
-history, session/branch changes, newer pending generation, or manual ownership.
-No global settings are changed.
+OMP can still generate its own initial/replan titles. If a native auto write replaces a current plugin title, the plugin restores its accepted title without another model call when the current session/branch/context snapshot is still safe. If conversation progress defers that immediate repair, the next same-task completed turn refreshes the snapshot and repairs the overwritten title. Task, branch, session, newer-request, and manual-ownership safeguards remain in place. No global settings are changed.
 
 There are no optional plugin features today. OMP may still write
 `"enabledFeatures": null` in its plugin lockfile; that means "use default
 features" and is expected.
+
+## Runtime diagnostics
+
+```text
+/retitle status
+```
+
+Reports the plugin version captured when the module loaded, process ID, load time, and extension path—not a fresh read of the package version currently on disk. It also shows current title ownership, selected repository/reference, observer availability, pending work, accepted title, repair eligibility/outcome, and the three latest persisted title writes with their source/trigger. Status does not call a model, rename the session, or append title history.
+
+Use the process/load identity to check whether `/restart` actually replaced the process, and the extension path to identify which installation is loaded. Recent triggers distinguish plugin writes such as `omp-auto-retitle:command` from recorded native `replan` writes; an absent trigger is reported as unknown rather than attributed to a component.
+
+Releases before 0.10.0 do not implement this subcommand. If `/retitle status` only reports `Session title regenerated` or `Session title unchanged`, that process has not loaded the status-capable release. Start a new process after installing the release and check again; changing files on disk does not update extension modules already loaded in an open session.
 
 ## Maintainer knowledge base
 

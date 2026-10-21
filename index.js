@@ -1,6 +1,7 @@
 import {
   canRetitle,
   generateTitleWithOmp,
+  getLoadedPluginInfo,
   setAutoSessionName,
   subscribeToSessionTitles,
 } from "./omp-adapter.js"
@@ -44,7 +45,10 @@ export default function autoRetitleExtension(pi, options = {}) {
 
       lifecycle.generated = true
       await retitleSession(event, ctx, { ...options, pi }, reason)
+      return
     }
+
+    await repairAcceptedTitle(sessionManager, lifecycle, "settled-repair")
   })
 
   pi.on("tool_result", (event, ctx) => {
@@ -64,8 +68,24 @@ export default function autoRetitleExtension(pi, options = {}) {
   pi.on("session_shutdown", (_event, ctx) => disposeLifecycle(ctx?.sessionManager))
 
   pi.registerCommand("retitle", {
-    description: "Regenerate the auto title from repository, ticket or PR, and session task.",
-    handler: async (_args, ctx) => {
+    description: "Regenerate the auto title, or use /retitle status for loaded version and diagnostics.",
+    getArgumentCompletions: (prefix) => {
+      if ("status".startsWith(prefix.trim())) {
+        return [{ value: "status", label: "status — loaded version and title diagnostics" }]
+      }
+      return null
+    },
+    handler: async (args, ctx) => {
+      const action = args.trim()
+      if (action === "status") {
+        ctx.ui?.notify?.(retitleStatus(ctx), "info")
+        return
+      }
+      if (action) {
+        ctx.ui?.notify?.("Usage: /retitle [status]", "info")
+        return
+      }
+
       const changed = await retitleSession({}, ctx, { ...options, pi }, "command")
       ctx.ui?.notify?.(changed ? "Session title regenerated" : "Session title unchanged", "info")
     },
@@ -149,10 +169,12 @@ function getLifecycle(sessionManager) {
       context: undefined,
       accepted: undefined,
       unsubscribe: undefined,
+      lastRepair: "No repair attempt in this process",
     }
     lifecycle.unsubscribe = subscribeToSessionTitles(sessionManager, (change) => {
       return onNativeTitleChange(sessionManager, lifecycle, change)
     }, (error) => {
+      lifecycle.lastRepair = `Error: ${error?.message ?? error}`
       lifecycle.context?.ui?.notify?.(`Auto-retitle title observer failed: ${error?.message ?? error}`, "error")
     })
     if (typeof lifecycle.unsubscribe !== "function") {
@@ -172,6 +194,7 @@ function updateLifecycleContext(lifecycle, sessionManager, ctx) {
     lifecycle.replanPending = false
     lifecycle.identity = undefined
     lifecycle.accepted = undefined
+    lifecycle.lastRepair = "No repair attempt in this session"
     lifecycle.branchEpoch += 1
   }
 
@@ -192,26 +215,84 @@ function contextIdentity(context) {
 
 async function onNativeTitleChange(sessionManager, lifecycle, change) {
   if (typeof change?.trigger === "string" && change.trigger.startsWith(PLUGIN_TRIGGER_PREFIX)) return
-  if (change?.source !== "auto" || pendingRetitles.has(sessionManager)) return
+  if (change?.source !== "auto") return
+
+  await repairAcceptedTitle(sessionManager, lifecycle, "native-repair")
+}
+
+async function repairAcceptedTitle(sessionManager, lifecycle, reason) {
+  if (lifecycle.accepted && sessionManager.getSessionName?.() === lifecycle.accepted.title) return false
+
+  const blocker = repairBlocker(sessionManager, lifecycle)
+  if (blocker) {
+    lifecycle.lastRepair = `Skipped: ${blocker}`
+    return false
+  }
+
+  const changed = await setAutoSessionName(sessionManager, lifecycle.accepted.title, `${PLUGIN_TRIGGER_PREFIX}${reason}`)
+  if (changed) {
+    lifecycle.lastRepair = `Restored: ${reason}`
+  } else {
+    lifecycle.lastRepair = "No title write accepted"
+  }
+  return changed
+}
+
+function repairBlocker(sessionManager, lifecycle) {
+  if (!canRetitle(sessionManager)) return "manual title ownership"
+  if (pendingRetitles.has(sessionManager)) return "newer title request pending"
 
   const accepted = lifecycle.accepted
   const ctx = lifecycle.context
-  if (
-    !accepted ||
-    !ctx ||
-    !canRetitle(sessionManager) ||
-    sessionManager.getSessionId?.() !== accepted.sessionId ||
-    conversationLeafId(sessionManager) !== accepted.leafId ||
-    lifecycle.branchEpoch !== accepted.branchEpoch ||
-    lifecycle.identity !== accepted.identity ||
-    change?.title === accepted.title
-  ) {
-    return
-  }
+  if (!accepted) return "no accepted title cached in this process"
+  if (!ctx) return "no active session context"
+  if (sessionManager.getSessionId?.() !== accepted.sessionId) return "session changed"
+  if (lifecycle.branchEpoch !== accepted.branchEpoch) return "branch changed"
+  if (conversationLeafId(sessionManager) !== accepted.leafId) return "conversation advanced"
+  if (lifecycle.identity !== accepted.identity) return "task identity changed"
 
   const current = titleContextFromSession({}, ctx)
-  if (!current || contextIdentity(current) !== accepted.identity || current.input !== accepted.input) return
-  await setAutoSessionName(sessionManager, accepted.title, `${PLUGIN_TRIGGER_PREFIX}native-repair`)
+  if (!current || contextIdentity(current) !== accepted.identity) return "task identity changed"
+  if (current.input !== accepted.input) return "title context changed"
+
+  return undefined
+}
+
+function retitleStatus(ctx) {
+  const manager = ctx?.sessionManager
+  const lifecycle = manager && lifecycleByManager.get(manager)
+  const runtime = getLoadedPluginInfo()
+  const context = titleContextFromSession({}, ctx)
+  const history = (manager?.getEntries?.() ?? []).filter((entry) => entry.type === "title_change").slice(-3)
+  const lines = [
+    `Auto Retitle ${runtime.version} (loaded in this process)`,
+    `Process: ${runtime.pid}; module loaded: ${runtime.loadedAt}`,
+    `Extension: ${runtime.entry}`,
+    `Current title: ${manager?.getSessionName?.() ?? "(untitled)"}`,
+    `Ownership: ${manager?.titleSource ?? "unowned"}`,
+    `Repository: ${context?.repository || "(unknown)"}; reference: ${context?.reference || "(none)"}`,
+  ]
+  if (lifecycle) {
+    let observer = "unavailable"
+    if (typeof lifecycle.unsubscribe === "function") observer = "active"
+    let generation = "idle"
+    if (pendingRetitles.has(manager)) generation = "pending"
+    lines.push(
+      `Title observer: ${observer}; generation: ${generation}; replan pending: ${lifecycle.replanPending}`,
+      `Accepted title: ${lifecycle.accepted?.title ?? "(none cached in this process)"}`,
+      `Repair eligibility: ${repairBlocker(manager, lifecycle) ?? "ready"}`,
+      `Last repair outcome: ${lifecycle.lastRepair}`,
+    )
+  } else {
+    lines.push("Lifecycle: not initialized in this process")
+  }
+  lines.push("Recent title writes (persisted source/trigger, not inferred writer identity):")
+  for (const entry of history) {
+    lines.push(`- ${entry.timestamp ?? "(time unavailable)"} | ${entry.source ?? "unknown"} | ${entry.trigger ?? "(trigger not recorded)"} | ${entry.title}`)
+  }
+  if (history.length === 0) lines.push("- No title history available")
+
+  return lines.join("\n")
 }
 
 function resetBranchEligibility(sessionManager) {
@@ -221,6 +302,7 @@ function resetBranchEligibility(sessionManager) {
   lifecycle.generated = false
   lifecycle.identity = undefined
   lifecycle.accepted = undefined
+  lifecycle.lastRepair = "Repair cache cleared after branch change"
   lifecycle.branchEpoch += 1
 }
 
@@ -233,6 +315,7 @@ function resetSessionEligibility(sessionManager) {
   lifecycle.replanPending = false
   lifecycle.identity = undefined
   lifecycle.accepted = undefined
+  lifecycle.lastRepair = "No repair attempt in this session"
   lifecycle.branchEpoch += 1
 }
 

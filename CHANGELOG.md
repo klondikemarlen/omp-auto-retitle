@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+
+- `/retitle status` reports the version loaded in the current process, process/load identity, current ownership and context, observer/pending-work state, accepted title, repair diagnostics, and recent persisted title writer triggers.
+- Argument autocomplete for `status`; unknown `/retitle` arguments report usage without generation.
+
+### Fixed
+
+- Restore an auto-overwritten title at the next same-task completed-turn boundary when conversation progress made immediate listener repair unsafe, without another title-model call.
+
 ## 0.9.0
 
 ### Changed

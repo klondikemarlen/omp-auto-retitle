@@ -40,6 +40,8 @@ Tests do not prove that the installed OMP binary exposes the required internal A
 3. Type `/reti` without submitting. Confirm autocomplete offers `/retitle` with its regeneration description. Submit it and observe `Session title regenerated` or, if already matching, `Session title unchanged`.
 4. Manually rename the disposable session through OMP's `/rename` command. Confirm ordinary turns, ticket changes, and `/retitle` preserve that manual title.
 5. Exercise the native title listener with a late auto write and inspect history for safe `native-repair` restoration. Use controlled-promise regressions for generation overlap and genuine branch/message invalidation; native title metadata alone must not invalidate a current request.
+6. Run `/retitle status` and confirm it completes locally without a model invocation or title-history change. Verify the loaded version/path and observer state. In a disposable source process, change the package manifest version after the extension loads: the existing process must retain its captured version while a new process reports the changed one.
+7. Append ordinary same-task conversation progress before a native auto-title write. Confirm status explains the skipped immediate repair, then complete a turn and inspect `settled-repair` restoration without another title-model call. Manual ownership and changed task identity must still block stale restoration.
 
 A provider-unavailable result is not successful generation evidence. Report which surfaces were observed and which remain blocked. Never claim that tests alone establish title quality across models.
 
