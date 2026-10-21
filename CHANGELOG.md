@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0
+
+### Changed
+
+- Generate useful titles after the first completed agent run, successful replans, and active repository/ticket changes instead of waiting for compaction.
+- Keep ordinary same-task follow-ups free of additional title-model calls, while retaining compaction and `/retitle` refreshes.
+- Use explicitly supplied ticket subjects directly, avoiding model-generated workflow labels and unnecessary title calls.
+- Restore current plugin titles after late native automatic title writes without another model call or global configuration changes.
+
+### Fixed
+
+- Do not mistake image, screenshot, or attachment indices for GitHub issue numbers.
+- Treat title-history metadata separately from conversation changes when checking request freshness.
+
 ## 0.8.0
 
 ### Changed

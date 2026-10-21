@@ -4,7 +4,7 @@ Intelligent OMP session title management over time.
 
 ## What it does
 
-- Listens for `session_compact`.
+- Generates after the first completed agent run, explicit replans, and active repository/ticket changes; also refreshes after `session_compact`.
 - Builds title context from the working-directory name, ticket/PR references, original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured `providers.tinyModel`.
 - Updates the session title with OMP's auto-title source.
@@ -32,18 +32,28 @@ user only pasted a link. This does not fetch Jira/GitHub metadata.
 The latest explicit user reference takes priority; otherwise the latest
 recognized conversation/summary reference is used. Cross-repository GitHub
 references retain their owner/repository. The identity prefix is added locally,
-so it does not depend on the title model remembering identifiers.
+so it does not depend on the title model remembering identifiers. Attachment
+indices such as `Image #1` or `Screenshot #2` are not ticket references.
 
-OMP generates the short task description from the original request, recent
+When a reference supplies an explicit `KEY: subject` or `#number: subject`, the
+plugin uses that grounded subject directly. The same ticket retains its latest
+supplied subject across incidental replans, without a model call.
+Otherwise OMP generates a short description from the original request, recent
 clarifications, and compaction history. Without a ticket, it summarizes the
-actual task or question. It prefers durable user goals over temporary
-implementation details. Description quality still depends on the configured
+actual task or question. Generated wording still depends on the configured
 title model and the details available in the session.
 
-For trust and stability, automatic retitling stays tied to `session_compact`.
-Retitling on every user prompt would increase churn and let narrow subtasks
-overweight the session title. Use `/retitle` when you want to test or correct
-the title immediately.
+Automatic generation runs after the first completed agent run in each session,
+after a successful `todo init` replan, when repository/ticket identity changes,
+and after compaction. Ordinary follow-ups with unchanged task identity do not
+call the title model again. A different no-ticket goal can be introduced through
+a replan or refreshed explicitly with `/retitle`.
+
+OMP can still generate its own initial/replan titles. If a late native auto
+write replaces a current plugin title, the plugin restores its accepted title
+without another model call. It never restores a title across changed conversation
+history, session/branch changes, newer pending generation, or manual ownership.
+No global settings are changed.
 
 There are no optional plugin features today. OMP may still write
 `"enabledFeatures": null` in its plugin lockfile; that means "use default
@@ -61,6 +71,7 @@ This extension intentionally relies on current OMP internals so it can preserve 
 
 - `ctx.sessionManager.setSessionName(title, "auto", trigger)` keeps repeated plugin retitles marked as auto-generated.
 - `@oh-my-pi/pi-coding-agent/utils/title-generator` reuses OMP's existing title generation path, including the configured `providers.tinyModel` value, local/online handling, and marker-based output parsing.
+- `ctx.sessionManager.onSessionNameChanged(...)` observes late native automatic title writes; its subscription is removed when the session shuts down.
 
 Those are more version-coupled than the public `pi.setSessionName(name)` action.
 
