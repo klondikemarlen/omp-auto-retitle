@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs"
+
 import { generateSessionTitle } from "@oh-my-pi/pi-coding-agent/utils/title-generator"
 
-import packageMetadata from "./package.json" with { type: "json" }
+const packageMetadata = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"))
 
 const LOADED_PLUGIN_INFO = Object.freeze({
   version: packageMetadata.version,
