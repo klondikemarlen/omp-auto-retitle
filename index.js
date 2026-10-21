@@ -221,12 +221,13 @@ async function onNativeTitleChange(sessionManager, lifecycle, change) {
 }
 
 async function repairAcceptedTitle(sessionManager, lifecycle, reason) {
+  if (lifecycle.accepted && sessionManager.getSessionName?.() === lifecycle.accepted.title) return false
+
   const blocker = repairBlocker(sessionManager, lifecycle)
   if (blocker) {
     lifecycle.lastRepair = `Skipped: ${blocker}`
     return false
   }
-  if (sessionManager.getSessionName?.() === lifecycle.accepted.title) return false
 
   const changed = await setAutoSessionName(sessionManager, lifecycle.accepted.title, `${PLUGIN_TRIGGER_PREFIX}${reason}`)
   if (changed) {
