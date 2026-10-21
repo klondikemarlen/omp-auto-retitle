@@ -10,7 +10,6 @@ const MAX_WORK_EVIDENCE_LENGTH = 130
 
 const GITHUB_WORK_REFERENCE = /https?:\/\/github\.com\/([a-z0-9_.-]+)\/([a-z0-9_.-]+)\/(issues|pull)\/(\d+)/i
 const JIRA_REFERENCE = /\b[A-Z][A-Z0-9]+-\d+\b/
-const GITHUB_SHORT_REFERENCE = /(?:\b(issue|PR|pull request)\s*)?#(\d+)\b/i
 
 export function titleContextFromSession(event, ctx) {
   const sessionManager = ctx?.sessionManager
@@ -31,7 +30,9 @@ export function titleContextFromSession(event, ctx) {
   return {
     input: titlePrompt(repository, workEvidence.map((item) => item.text), originalTask, userContext, summaries),
     repository,
-    reference: titleReference(workEvidence[0], repository),
+    reference: titleReference(workEvidence.at(-1), repository),
+    originalTask,
+    subject: workEvidence.at(-1)?.subject ?? "",
   }
 }
 
@@ -58,10 +59,10 @@ function titleReference(evidence, repository) {
 function titlePrompt(repository, workEvidence, originalTask, userContext, summaries) {
   return [
     repository && section("Repository", repository),
-    workEvidence.length > 0 && section("Relevant issue or PR", bulletList(workEvidence)),
     originalTask && section("Original user request", originalTask),
     userContext.length > 0 && section("Recent user context", bulletList(userContext)),
     summaries.length > 0 && section("Compaction history", bulletList(summaries)),
+    workEvidence.length > 0 && section("Relevant issue or PR", bulletList(workEvidence)),
   ].filter(Boolean).join("\n\n")
 }
 
@@ -166,9 +167,13 @@ function selectedBranchWorkEvidence(entries) {
 
   // Keep the latest explicit user reference even when later tool output is noisy.
   const selected = userEvidence.at(-1) ?? evidence.at(-1)
+  if (selected) {
+    selected.subject = evidence.findLast((item) => item.reference === selected.reference && item.subject)?.subject ?? ""
+  }
+
   const otherTexts = evidence.filter((item) => item !== selected).map((item) => item.text)
   const recentTexts = latestUnique(otherTexts, MAX_WORK_EVIDENCE - 1)
-  return [selected, ...recentTexts.map((text) => evidence.findLast((item) => item.text === text))].filter(Boolean)
+  return [...recentTexts.map((text) => evidence.findLast((item) => item.text === text)), selected].filter(Boolean)
 }
 
 function workEvidenceText(entry) {
@@ -189,7 +194,20 @@ function workEvidenceText(entry) {
 }
 
 function hasWorkReference(line) {
-  return GITHUB_WORK_REFERENCE.test(line) || JIRA_REFERENCE.test(line) || GITHUB_SHORT_REFERENCE.test(line)
+  return GITHUB_WORK_REFERENCE.test(line) || JIRA_REFERENCE.test(line) || shortWorkReference(line) !== null
+}
+
+function shortWorkReference(line) {
+  for (const match of line.matchAll(/(?:\b(issue|PR|pull request)\s*)?#(\d+)\b/gi)) {
+    const before = line.slice(0, match.index)
+    if (/(?:^|[\s[(])(?:image|screenshot|attachment)\s*$/i.test(before)) {
+      continue
+    }
+
+    return match
+  }
+
+  return null
 }
 
 function adjacentDescription(lines, index) {
@@ -203,7 +221,7 @@ function adjacentDescription(lines, index) {
 function compactEvidence(line, description) {
   const github = line.match(GITHUB_WORK_REFERENCE)
   const jira = line.match(JIRA_REFERENCE)
-  const short = line.match(GITHUB_SHORT_REFERENCE)
+  const short = shortWorkReference(line)
   const match = github ?? jira ?? short
   const isPullRequest = github ? github[3] === "pull" : /^(PR|pull request)$/i.test(short?.[1] ?? "")
   const shortReference = `${isPullRequest ? "PR" : ""}#${github ? github[4] : short?.[2]}`
@@ -215,6 +233,7 @@ function compactEvidence(line, description) {
     reference,
     repository: github?.[2],
     shortReference,
+    subject: compactText(after.match(/^\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)/)?.[1], MAX_USER_CONTEXT_LENGTH),
     text: compactText(`${reference}: ${details}`, MAX_WORK_EVIDENCE_LENGTH),
   }
 }

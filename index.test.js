@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager"
 
-import { retitleFromCompaction } from "./index.js"
+import autoRetitleExtension, { retitleSession } from "./index.js"
 
 function sessionWithTask() {
   const session = SessionManager.inMemory("/workspace/accounting")
@@ -11,12 +11,32 @@ function sessionWithTask() {
   return session
 }
 
+function extensionHarness(generateTitle) {
+  const handlers = new Map()
+  const commands = new Map()
+  const notifications = []
+  const pi = {
+    setLabel() {},
+    on(name, callback) { handlers.set(name, callback) },
+    registerCommand(name, command) { commands.set(name, command) },
+  }
+  autoRetitleExtension(pi, { generateTitle })
+  return {
+    handlers,
+    commands,
+    notifications,
+    ctx(sessionManager) {
+      return { sessionManager, ui: { notify: (...args) => notifications.push(args) } }
+    },
+  }
+}
+
 test("when a title is generated, persist its normalized auto-owned value", async () => {
   // Arrange
   const sessionManager = sessionWithTask()
 
   // Act
-  await retitleFromCompaction({}, { sessionManager }, {
+  await retitleSession({}, { sessionManager }, {
     generateTitle: async () => "  Accounting import  ",
   })
 
@@ -29,12 +49,12 @@ test("when generations complete out of order, keep the latest request's title", 
   // Arrange
   const sessionManager = sessionWithTask()
   const generation = Promise.withResolvers()
-  const older = retitleFromCompaction({}, { sessionManager }, {
+  const older = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
   // Act
-  await retitleFromCompaction({}, { sessionManager }, {
+  await retitleSession({}, { sessionManager }, {
     generateTitle: async () => "Latest accounting goal",
   })
   generation.resolve("Outdated accounting goal")
@@ -49,12 +69,12 @@ test("when a newer request produces no title, discard an older request's result"
   const sessionManager = sessionWithTask()
   await sessionManager.setSessionName("Existing title", "auto")
   const generation = Promise.withResolvers()
-  const older = retitleFromCompaction({}, { sessionManager }, {
+  const older = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
   // Act
-  await retitleFromCompaction({}, { sessionManager }, { generateTitle: async () => null })
+  await retitleSession({}, { sessionManager }, { generateTitle: async () => null })
   generation.resolve("Outdated accounting goal")
   await older
 
@@ -66,7 +86,7 @@ test("when the selected session changes during generation, discard the pending t
   // Arrange
   const sessionManager = sessionWithTask()
   const generation = Promise.withResolvers()
-  const pending = retitleFromCompaction({}, { sessionManager }, {
+  const pending = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
@@ -85,7 +105,7 @@ test("when the selected branch changes during generation, discard the pending ti
   const originalLeaf = sessionManager.getLeafId()
   sessionManager.appendMessage({ role: "user", content: "Build a recipe blog instead", timestamp: 1 })
   const generation = Promise.withResolvers()
-  const pending = retitleFromCompaction({}, { sessionManager }, {
+  const pending = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
@@ -98,11 +118,28 @@ test("when the selected branch changes during generation, discard the pending ti
   assert.equal(sessionManager.getSessionName(), undefined)
 })
 
+test("when a message advances the selected branch during generation, discard the pending title", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const generation = Promise.withResolvers()
+  const pending = retitleSession({}, { sessionManager }, {
+    generateTitle: () => generation.promise,
+  })
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Switch to a recipe blog", timestamp: 1 })
+  generation.resolve("Accounting import")
+  await pending
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), undefined)
+})
+
 test("when a manual rename happens during generation, preserve user ownership", async () => {
   // Arrange
   const sessionManager = sessionWithTask()
   const generation = Promise.withResolvers()
-  const pending = retitleFromCompaction({}, { sessionManager }, {
+  const pending = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
@@ -122,7 +159,7 @@ test("when the title is manually owned, skip generation entirely", async () => {
   await sessionManager.setSessionName("My chosen title", "user")
 
   // Act / Assert
-  assert.equal(await retitleFromCompaction({}, { sessionManager }, {
+  assert.equal(await retitleSession({}, { sessionManager }, {
     generateTitle: () => assert.fail("Manual titles must not request generation"),
   }), false)
 })
@@ -134,7 +171,7 @@ test("when the generated title is unchanged, preserve title history", async () =
   const entries = sessionManager.getEntries()
 
   // Act
-  await retitleFromCompaction({}, { sessionManager }, {
+  await retitleSession({}, { sessionManager }, {
     generateTitle: async () => " Accounting import ",
   })
 
@@ -148,7 +185,9 @@ test("when generated output is blank, preserve the existing title", async () => 
   await sessionManager.setSessionName("Existing title", "auto")
 
   // Act
-  await retitleFromCompaction({}, { sessionManager }, { generateTitle: async () => " \n\t " })
+  await retitleSession({}, { sessionManager }, {
+    generateTitle: async () => " \n\t ",
+  })
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "Existing title")
@@ -159,12 +198,12 @@ test("when separate sessions retitle concurrently, keep their requests independe
   const sessionManager = sessionWithTask()
   const otherSession = sessionWithTask()
   const generation = Promise.withResolvers()
-  const pending = retitleFromCompaction({}, { sessionManager }, {
+  const pending = retitleSession({}, { sessionManager }, {
     generateTitle: () => generation.promise,
   })
 
   // Act
-  await retitleFromCompaction({}, { sessionManager: otherSession }, {
+  await retitleSession({}, { sessionManager: otherSession }, {
     generateTitle: async () => "Other session goal",
   })
   generation.resolve("Accounting import")
@@ -179,14 +218,276 @@ test("when generation fails, propagate the error and allow a later retitle", asy
   const sessionManager = sessionWithTask()
 
   // Act / Assert
-  await assert.rejects(retitleFromCompaction({}, { sessionManager }, {
+  await assert.rejects(retitleSession({}, { sessionManager }, {
     generateTitle: async () => {
       throw new Error("Generation failed")
     },
   }), /Generation failed/)
 
-  await retitleFromCompaction({}, { sessionManager }, {
+  await retitleSession({}, { sessionManager }, {
     generateTitle: async () => "Accounting import",
   })
   assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
+})
+
+test("when the first agent run completes, title once and skip unchanged followups", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Accounting task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+
+  // Act
+  await harness.handlers.get("agent_end")({}, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(generations, 1)
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+})
+
+test("when the active ticket changes, retitle on the next completed agent run", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Ticket task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Now work on #42", timestamp: 1 })
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(generations, 2)
+  assert.match(sessionManager.getSessionName(), /#42/)
+})
+
+test("when todo init succeeds, retitle once at the next agent end", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Plan task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  harness.handlers.get("tool_result")({
+    toolName: "todo",
+    isError: false,
+    details: { op: "init" },
+  }, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(generations, 2)
+  assert.equal(sessionManager.getSessionName(), "accounting: Plan task 2")
+})
+
+test("when OMP writes a native auto title, restore the accepted title without generation", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Accounting task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  harness.handlers.get("session_start")({}, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  await sessionManager.setSessionName("Native title", "auto", "omp-native-auto-title")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+  assert.equal(generations, 1)
+})
+
+test("when a manual title replaces an accepted auto title, preserve user ownership", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Generated task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  await sessionManager.setSessionName("User title", "user")
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "User title")
+  assert.equal(generations, 1)
+})
+
+test("when the branch changes, do not restore a title cached for the prior branch", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const originalLeaf = sessionManager.getLeafId()
+  const harness = extensionHarness(async () => "Accounting task")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Change to a recipe blog", timestamp: 1 })
+  await harness.handlers.get("session_branch")({}, ctx)
+  sessionManager.branch(originalLeaf)
+  await sessionManager.setSessionName("Native title", "auto", "omp-native-auto-title")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "Native title")
+})
+
+test("when the session changes, do not restore a title cached for another session", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const harness = extensionHarness(async () => "Accounting task")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  await sessionManager.newSession()
+  await harness.handlers.get("session_switch")({}, ctx)
+  await sessionManager.setSessionName("Native title", "auto", "omp-native-auto-title")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "Native title")
+})
+
+test("when the user changes the task, do not restore the previously accepted title", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const harness = extensionHarness(async () => "Accounting task")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Switch to a recipe blog", timestamp: 1 })
+  await sessionManager.setSessionName("Native title", "auto", "omp-native-auto-title")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "Native title")
+})
+
+test("when compaction or the command requests retitling, use the corresponding title trigger", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  let generations = 0
+  const harness = extensionHarness(async () => `Explicit task ${++generations}`)
+  const ctx = harness.ctx(sessionManager)
+
+  // Act
+  await harness.handlers.get("session_compact")({ summary: "Compacted task" }, ctx)
+  await harness.commands.get("retitle").handler("", ctx)
+
+  // Assert
+  const titleChanges = sessionManager.getEntries().filter((entry) => entry.type === "title_change")
+  assert.equal(titleChanges[0].trigger, "omp-auto-retitle:session_compact")
+  assert.equal(titleChanges[1].trigger, "omp-auto-retitle:command")
+  assert.equal(harness.notifications.at(-1)[0], "Session title regenerated")
+  assert.equal(generations, 2)
+})
+
+test("when a native title write occurs during newer generation, keep its interim value until commit", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const generation = Promise.withResolvers()
+  let calls = 0
+  const harness = extensionHarness(() => {
+    calls += 1
+    return calls === 1 ? "Original task" : generation.promise
+  })
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+  const retitling = harness.commands.get("retitle").handler("", ctx)
+
+  // Act
+  await sessionManager.setSessionName("Native interim title", "auto", "omp-native-auto-title")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "Native interim title")
+
+  // Finish the controlled request after proving the old title was not restored.
+  generation.resolve("Updated task")
+  await retitling
+  assert.equal(sessionManager.getSessionName(), "accounting: Updated task")
+  assert.equal(calls, 2)
+})
+
+test("when only title history changes during generation, keep the request fresh", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const generation = Promise.withResolvers()
+  const pending = retitleSession({}, { sessionManager }, {
+    generateTitle: () => generation.promise,
+  })
+
+  // Act
+  await sessionManager.setSessionName("Native interim title", "auto", "omp-native-auto-title")
+  generation.resolve("Accounting import")
+  await pending
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting: Accounting import")
+  assert.equal(sessionManager.getEntries().filter((entry) => entry.type === "title_change").length, 2)
+})
+
+test("when a ticket supplies a subject, retain it across replans without a model call", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching. Acknowledge with ready.", timestamp: 1 })
+  const harness = extensionHarness(() => assert.fail("An explicit ticket subject does not need generation"))
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "For ACC-43, initialize the investigation plan", timestamp: 2 })
+  harness.handlers.get("tool_result")({ toolName: "todo", isError: false, details: { op: "init" } }, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Fix transaction matching")
+})
+
+test("when the active ticket changes, do not reuse another ticket's explicit subject", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-42: Fix bank imports", timestamp: 1 })
+  const harness = extensionHarness(async () => "Explain transaction isolation")
+  const ctx = harness.ctx(sessionManager)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Act
+  sessionManager.appendMessage({ role: "user", content: "Now work on ACC-43", timestamp: 2 })
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Explain transaction isolation")
+})
+
+test("when an older title write finishes late, preserve the newer repair cache", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const written = Promise.withResolvers()
+  const persisted = Promise.withResolvers()
+  const setName = sessionManager.setSessionName.bind(sessionManager)
+  sessionManager.setSessionName = async (...args) => {
+    const changed = await setName(...args)
+    if (args[0] === "accounting: Original task") {
+      written.resolve()
+      await persisted.promise
+    }
+    return changed
+  }
+  const ctx = { sessionManager }
+  const older = retitleSession({}, ctx, { generateTitle: async () => "Original task" })
+  await written.promise
+  await retitleSession({}, ctx, { generateTitle: async () => "Latest task" })
+
+  // Act
+  persisted.resolve()
+  await older
+  await sessionManager.setSessionName("Native generic title", "auto", "replan")
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "accounting: Latest task")
 })
