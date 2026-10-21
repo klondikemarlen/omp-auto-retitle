@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+### Fixed
+
+- Load version metadata once through `node:fs` instead of a static JSON import, preserving loaded-version reporting while passing OMP's installer legacy-loader validation.
+
 ## 0.10.0
 
 ### Added

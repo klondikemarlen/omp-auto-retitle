@@ -54,6 +54,8 @@ The adapter intentionally uses three internal surfaces:
 
 The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. An upgrade needs source inspection and fresh-process QA because internal imports and exposed settings may change independently. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.12.6` was exercised with this integration; this is not a claim that every intermediate or future release is supported.
 
+Installer validation is a separate import boundary from direct `-e` runtime loading. The legacy extension graph loader handles collected modules as JavaScript/TypeScript, including a relative static JSON import; that import may pass direct runtime QA and fail installation. Package metadata is therefore read once through `node:fs` at module evaluation and copied into the frozen loaded-runtime snapshot. Status never rereads the file.
+
 The plugin never picks a model. OMP's existing generator owns configured tiny-role/model resolution, local-vs-online behavior, authentication, and output validation. Preserve that delegation; do not add an online fallback to local generation or change user routes to make QA pass. Missing host settings or no generated title means no rename.
 
 ## Language and organization decision

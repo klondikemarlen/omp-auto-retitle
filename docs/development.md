@@ -21,6 +21,12 @@ Keep regression assertions about consumer-visible behavior and invariants. Do no
 
 For a lifecycle change, control promise completion explicitly rather than sleeping. For context changes, fill all sections to their limits and verify that the final compaction still reaches the generator's accepted input. Live title wording is nondeterministic; assert intent and source ownership, not one exact phrase.
 
+For runtime-import changes, exercise the installer's legacy module loader as well as direct `-e` startup. A direct process can accept a static JSON import that the installer's graph loader rejects:
+
+```sh
+bun -e 'import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "./node_modules/@oh-my-pi/pi-coding-agent/src/extensibility/plugins/legacy-pi-compat.ts"; installLegacyPiSpecifierShim(); const extension = await loadLegacyPiModule("./index.js"); if (typeof extension.default !== "function") throw new Error("Missing extension factory"); console.log("Installer legacy module loader: PASS")'
+```
+
 When the shared `marlens-skills-rules-and-tools` package is installed, test changes
 also require its [test-alignment verifier](https://github.com/klondikemarlen/marlens-skills-rules-and-tools/blob/main/docs/references/test-alignment-verifier-reference.md).
 This structural gate is separate from passing behavioral tests. Run it before
