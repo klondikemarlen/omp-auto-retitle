@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1
+
+### Changed
+
+- Organize plain JavaScript source, tests, and the bundled prompt into responsibility-focused directories.
+- Separate extension registration, lifecycle decisions, generation ownership, native repair, status rendering, pure context handling, and OMP policy loading.
+- Use explanatory operation/state names and flatter control flow while preserving title behavior and existing regression scenarios.
+
 ## 0.11.0
 
 ### Added

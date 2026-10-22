@@ -9,6 +9,6 @@ For maintainers and coding agents extending or diagnosing session retitling.
 
 ## Authority and publication
 
-The user guide and architecture describe intended behavior; implementation is in the three root JavaScript modules. Behavioral tests provide deterministic evidence, while installed-plugin QA covers the OMP integration. If these disagree, reproduce the conflict before changing the contract.
+The user guide and architecture describe intended behavior; implementation is in `src/`, with `index.js` as the OMP entry point and the bundled title policy under `prompts/`. Behavioral tests provide deterministic evidence, while installed-plugin QA covers the OMP integration. If these disagree, reproduce the conflict before changing the contract.
 
 This repository is public. Documentation is repository-facing; there is no documentation-site build or publication pipeline. Any future site must explicitly allowlist its inputs. Keep private session text, credentials, local profile details, and raw workstation logs out of committed documentation and public issue/PR evidence.
