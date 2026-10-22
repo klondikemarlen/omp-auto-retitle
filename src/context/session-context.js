@@ -4,7 +4,6 @@ import { selectWorkEvidence } from "./work-references.js"
 const MAX_COMPACTION_HISTORY = 5
 const MAX_USER_CONTEXT = 5
 const MAX_ORIGINAL_TASK_LENGTH = 200
-const MAX_USER_CONTEXT_LENGTH = 120
 const MAX_COMPACTION_SUMMARY_LENGTH = 100
 const MAX_REPOSITORY_LENGTH = 80
 
@@ -39,6 +38,7 @@ export function getCompactionSummary(entry) {
 function titleReference(evidence, repository) {
   if (!evidence) return ""
   if (evidence.repository === repository) return evidence.shortReference
+
   return evidence.reference
 }
 
@@ -64,11 +64,13 @@ function firstUserMessage(entries) {
     const text = userMessageText(entry)
     if (text) return text
   }
+
   return ""
 }
 
 function userMessageText(entry) {
   if (entry?.type !== "message" || entry?.message?.role !== "user") return ""
+
   return normalizeContextText(getMessageText(entry.message), MAX_ORIGINAL_TASK_LENGTH)
 }
 
@@ -78,6 +80,7 @@ function recentUniqueUserContext(entries) {
 
 function userMessageContext(entry) {
   if (entry?.type !== "message" || entry?.message?.role !== "user") return ""
+
   return normalizeContextText(getMessageText(entry.message))
 }
 
