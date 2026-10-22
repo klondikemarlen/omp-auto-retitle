@@ -7,8 +7,8 @@ A session title should identify the durable task in session history, not the mos
 ## Responsibilities
 
 - `index.js`: trigger eligibility, asynchronous request ownership, and safe restoration after native automatic title writes.
-- `title-context.js`: pure selection, identity extraction, bounded model input, and final title composition. It has no runtime imports, configuration, persistence, or model calls.
-- `omp-adapter.js`: the version-coupled OMP generator, task-description system instruction, settings access, title normalization, source-aware persistence, and native title-listener bridge.
+- `title-context.js`: pure selection, identity extraction, bounded model input, and final title composition, including fixed format-field substitution. It has no runtime imports, configuration, persistence, or model calls.
+- `omp-adapter.js`: the version-coupled OMP generator, Markdown policy discovery/parsing, settings access, title normalization, source-aware persistence, and native title-listener bridge.
 
 Dependencies point from orchestration to the two leaves. Import helpers from their owning module rather than re-exporting them through the extension entry point. The generator injection used by orchestration tests is not a plugin configuration option.
 
@@ -28,7 +28,17 @@ The latest explicit user reference supplies the title identity; without one, use
 
 OMP's pinned title generator truncates input at 2,000 JavaScript string characters. Section budgets are 80 characters for the repository, 200 for the original request, 120 per recent user message, 100 per summary, and 130 per reference excerpt. With all slots full and current labels, the maximum input is 1,912 characters. Changing labels, limits, or counts requires exercising the maximum-size regression so the newest context cannot disappear upstream.
 
-When a reference explicitly supplies a colon-delimited subject, retain the latest supplied subject for that same reference and compose the title directly, without a model call. The first sentence is bounded to 120 characters; subjects from another ticket are never reused. Otherwise the adapter asks OMP's generator for the actual task/question description rather than generic workflow labels. The pure composer adds `repository reference: description`, omitting absent fields. A blank model result still means no rename, never an identity-only title. Generated descriptions remain model-dependent; no provider fallback, metadata fetching, or quality retry is added.
+With the bundled default policy, when a reference explicitly supplies a colon-delimited subject, retain the latest supplied subject for that same reference and compose the title directly, without a model call. The first sentence is bounded to 120 characters; subjects from another ticket are never reused. Otherwise the adapter asks OMP's generator for the actual task/question description rather than generic workflow labels. The default format is `{prefix}{description}`, where the pure composer supplies `repository reference: ` only when identity exists. A blank model result still means no rename, never an identity-only title. Generated descriptions remain model-dependent; no provider fallback, metadata fetching, or quality retry is added.
+
+### Markdown policy boundary
+
+The bundled `title-prompt.md` is read and parsed once at module evaluation. Generation resolves `TITLE_SYSTEM.md` from the session working directory's `.omp`, `.claude`, `.codex`, then `.gemini` directories, followed by the user-level OMP agent directory and the home-level compatibility directories. OMP's native utility helpers retain its configuration-directory/profile semantics. The adapter mirrors this small search order because `config.ts` is not exposed by the exercised compiled host; importing that source-only subpath fails native startup despite passing the source loader.
+
+Selected override files are read for each generation. Blank overrides select the bundled default; read/parse/format errors propagate without renaming or quietly switching policies. OMP's Markdown frontmatter parser handles YAML. A `format` string supports only `{repository}`, `{reference}`, `{description}`, and `{prefix}`; substitution is a single pass over the format, never evaluation of conversation text. Missing raw fields become empty strings and literal punctuation remains. `{prefix}` supplies the complete optional default prefix. A format-only override uses the bundled description instructions.
+
+With a format, the model generates only its description and pure composition preserves the requested identifier ordering. Plain Markdown without a format controls the complete generated title and bypasses the default prefix. Both custom modes generate even with an explicit ticket subject; default subject optimization remains limited to the bundled policy. Exact full-title prompt compliance is model-dependent, which is why deterministic formatting is available independently of the selected model.
+
+Prompt edits apply at the next eligible generation or `/retitle`; they are not an extra automatic trigger or an in-flight cancellation mechanism. Read-only status resolves the source/mode for the next generation, not the historical policy of an already accepted title. Project policy files are trusted instructions, unlike conversation/tool excerpts. Native recognition of `TITLE_SYSTEM.md` does not imply native support for this plugin's format frontmatter.
 
 ## Asynchronous ownership and persistence
 
@@ -46,17 +56,18 @@ Bare `/retitle` reports `Session title regenerated` only when the setter succeed
 
 ## Compatibility and model ownership
 
-The adapter intentionally uses three internal surfaces:
+The adapter intentionally uses these internal surfaces:
 
 - `@oh-my-pi/pi-coding-agent/utils/title-generator` for `generateSessionTitle` and its marker-based output parsing.
-- `pi.pi.settings` for the active host settings, including `providers.tinyModel`.
+- `pi.pi.settings` for active host settings; source-only and compiled generator keys can differ.
 - The session manager's source-aware setter, session/leaf identity methods, and `onSessionNameChanged` subscription.
+- `@oh-my-pi/pi-utils` for OMP configuration-directory/profile helpers and Markdown frontmatter parsing. This package root is exposed by the compiled host; the coding-agent `config.ts` subpath is not.
 
 The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. An upgrade needs source inspection and fresh-process QA because internal imports and exposed settings may change independently. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.12.6` was exercised with this integration; this is not a claim that every intermediate or future release is supported.
 
 Installer validation is a separate import boundary from direct `-e` runtime loading. The legacy extension graph loader handles collected modules as JavaScript/TypeScript, including a relative static JSON import; that import may pass direct runtime QA and fail installation. Package metadata is therefore read once through `node:fs` at module evaluation and copied into the frozen loaded-runtime snapshot. Status never rereads the file.
 
-The plugin never picks a model. OMP's existing generator owns configured tiny-role/model resolution, local-vs-online behavior, authentication, and output validation. Preserve that delegation; do not add an online fallback to local generation or change user routes to make QA pass. Missing host settings or no generated title means no rename.
+The plugin never picks a model. OMP's existing generator owns configured model resolution, local-vs-online behavior, authentication, and output validation. The pinned `16.3.11` source generator reads `providers.tinyModel`; the exercised compiled `18.12.6` generator resolves the native `tiny` role instead. Preserve runtime-owned routing rather than adding obsolete settings, an online fallback, or user-route changes to make QA pass. Missing host settings or no generated title means no rename.
 
 ## Language and organization decision
 

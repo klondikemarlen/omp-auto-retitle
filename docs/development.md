@@ -14,8 +14,9 @@ npm run release:check
 
 ## Behavioral verification
 
-- `title-context.test.js` checks multiline intent, the complete 2,000-character input boundary, newest-occurrence ordering, selected-branch isolation, repository/ticket identity, late ticket descriptions, and supported message content.
+- `title-context.test.js` checks multiline intent, the complete 2,000-character input boundary, newest-occurrence ordering, selected-branch isolation, repository/ticket identity, late ticket descriptions, deterministic format composition, and supported message content.
 - `index.test.js` uses real in-memory OMP session managers with controlled generation promises. It checks automatic trigger cadence/model-call suppression, native auto-write repair, persistence, stale completion, session/branch switches, manual ownership, blank/unchanged output, independent sessions, and error recovery.
+- `omp-adapter.test.js` isolates home/project configuration in subprocesses to check prompt precedence, edits, blank defaults, format parsing, and visible configuration errors.
 
 Keep regression assertions about consumer-visible behavior and invariants. Do not pin instruction wording, dependency-version strings, registration plumbing, or implementation layout. Use a throwaway runtime probe for wiring. In-memory session fixtures do not need timers, external credentials, or cleanup hooks.
 
@@ -48,6 +49,7 @@ Tests do not prove that the installed OMP binary exposes the required internal A
 5. Exercise the native title listener with a late auto write and inspect history for safe `native-repair` restoration. Use controlled-promise regressions for generation overlap and genuine branch/message invalidation; native title metadata alone must not invalidate a current request.
 6. Run `/retitle status` and confirm it completes locally without a model invocation or title-history change. Verify the loaded version/path and observer state. In a disposable source process, change the package manifest version after the extension loads: the existing process must retain its captured version while a new process reports the changed one.
 7. Append ordinary same-task conversation progress before a native auto-title write. Confirm status explains the skipped immediate repair, then complete a turn and inspect `settled-repair` restoration without another title-model call. Manual ownership and changed task identity must still block stale restoration.
+8. In a disposable project's `.omp/TITLE_SYSTEM.md`, set a format with ticket-first ordering and a Markdown description prompt. Confirm `/retitle` and the first completed run preserve that format even when the model omits identifiers. Edit the format in the same process and confirm `/retitle` applies it. Check blank-file default behavior, unreadable-file diagnostics/recovery, native overwrite repair of the custom title, and manual-title preservation. Plain Markdown without a format controls the full model output, whose exact compliance remains model-dependent. Never change model routes to obtain a passing result.
 
 A provider-unavailable result is not successful generation evidence. Report which surfaces were observed and which remain blocked. Never claim that tests alone establish title quality across models.
 
