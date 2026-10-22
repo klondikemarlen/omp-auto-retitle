@@ -6,11 +6,23 @@ A session title should identify the durable task in session history, not the mos
 
 ## Responsibilities
 
-- `index.js`: trigger eligibility, asynchronous request ownership, and safe restoration after native automatic title writes.
-- `title-context.js`: pure selection, identity extraction, bounded model input, and final title composition, including fixed format-field substitution. It has no runtime imports, configuration, persistence, or model calls.
-- `omp-adapter.js`: the version-coupled OMP generator, Markdown policy discovery/parsing, settings access, title normalization, source-aware persistence, and native title-listener bridge.
+| Owner | Responsibility |
+| --- | --- |
+| `index.js` | Stable OMP entry point; delegates registration to `src/extension.js`. |
+| `src/extension.js` | Registers events and the `/retitle` command; dispatches to retitling operations. |
+| `src/context/session-context.js` | Assembles bounded selected-branch input and repository/task identity. |
+| `src/context/work-references.js` | Recognizes and selects ticket/PR evidence and explicit subjects. |
+| `src/context/context-text.js` | Extracts text, normalizes bounded prose, and retains recent unique values. |
+| `src/context/title-format.js` | Validates fixed format fields and composes titles without runtime dependencies. |
+| `src/retitling/session-retitler.js` | Owns session lifecycle, automatic refresh eligibility, and observer cleanup. |
+| `src/retitling/generate-title.js` | Owns latest-request freshness, generation, persistence, and accepted-title caching. |
+| `src/retitling/repair-title.js` | Decides whether cached titles can be restored safely and performs restoration. |
+| `src/retitling/title-status.js` | Renders read-only runtime and repair diagnostics. |
+| `src/retitling/session-identity.js` | Defines task identity and the conversation leaf excluding title metadata. |
+| `src/omp/omp-adapter.js` | Bridges version-coupled host generation, source-aware persistence, native observation, and loaded-runtime identity. |
+| `src/omp/title-policy.js` | Discovers and parses Markdown policies, using pure format validation. |
 
-Dependencies point from orchestration to the two leaves. Import helpers from their owning module rather than re-exporting them through the extension entry point. The generator injection used by orchestration tests is not a plugin configuration option.
+Dependencies flow from extension wiring to retitling operations, then to pure context helpers and OMP integration. Pure context modules never import runtime integration. Status reads repair eligibility without owning lifecycle state; repair and generation do not call the event coordinator. Import operations from their owning module rather than re-exporting them through the extension entry point. Test-only generator/policy injection is not plugin configuration.
 
 ## Title context
 
@@ -32,7 +44,7 @@ With the bundled default policy, when a reference explicitly supplies a colon-de
 
 ### Markdown policy boundary
 
-The bundled `title-prompt.md` is read and parsed once at module evaluation. Generation resolves `TITLE_SYSTEM.md` from the session working directory's `.omp`, `.claude`, `.codex`, then `.gemini` directories, followed by the user-level OMP agent directory and the home-level compatibility directories. OMP's native utility helpers retain its configuration-directory/profile semantics. The adapter mirrors this small search order because `config.ts` is not exposed by the exercised compiled host; importing that source-only subpath fails native startup despite passing the source loader.
+The bundled `prompts/default-title.md` is read and parsed once at module evaluation. Generation resolves `TITLE_SYSTEM.md` from the session working directory's `.omp`, `.claude`, `.codex`, then `.gemini` directories, followed by the user-level OMP agent directory and the home-level compatibility directories. OMP's native utility helpers retain its configuration-directory/profile semantics. The policy loader mirrors this small search order because `config.ts` is not exposed by the exercised compiled host; importing that source-only subpath fails native startup despite passing the source loader.
 
 Selected override files are read for each generation. Blank overrides select the bundled default; read/parse/format errors propagate without renaming or quietly switching policies. OMP's Markdown frontmatter parser handles YAML. A `format` string supports only `{repository}`, `{reference}`, `{description}`, and `{prefix}`; substitution is a single pass over the format, never evaluation of conversation text. Missing raw fields become empty strings and literal punctuation remains. `{prefix}` supplies the complete optional default prefix. A format-only override uses the bundled description instructions.
 
@@ -71,4 +83,4 @@ The plugin never picks a model. OMP's existing generator owns configured model r
 
 ## Language and organization decision
 
-Keep JavaScript ES modules and the existing three-module boundary. The extension API is already JavaScript-native, the pure logic is small, and there is no build step. The audit found context-budget and lifecycle bugs, not a measured compute bottleneck. Another language would require a bridge/subprocess and duplicate OMP integration; TypeScript would add checking setup without replacing behavioral proof. Reconsider typing or a language change when a concrete defect, workload, or consumer requirement outweighs that added maintenance surface.
+Keep JavaScript ES modules with no build step. Group modules by responsibility under `src/context/`, `src/retitling/`, and `src/omp/`; keep registration separate from lifecycle decisions, generation ownership, restoration, and diagnostics. The original three root modules grew to mix these responsibilities as automatic refreshes and Markdown policies were added. This split makes each invariant's owner explicit without a framework, compatibility re-exports, or a new dependency. Another language would require a bridge/subprocess and duplicate OMP integration; TypeScript would add checking setup without replacing behavioral proof. Reconsider typing or a language change when a concrete defect, workload, or consumer requirement outweighs that added maintenance surface.

@@ -14,9 +14,9 @@ npm run release:check
 
 ## Behavioral verification
 
-- `title-context.test.js` checks multiline intent, the complete 2,000-character input boundary, newest-occurrence ordering, selected-branch isolation, repository/ticket identity, late ticket descriptions, deterministic format composition, and supported message content.
-- `index.test.js` uses real in-memory OMP session managers with controlled generation promises. It checks automatic trigger cadence/model-call suppression, native auto-write repair, persistence, stale completion, session/branch switches, manual ownership, blank/unchanged output, independent sessions, and error recovery.
-- `omp-adapter.test.js` isolates home/project configuration in subprocesses to check prompt precedence, edits, blank defaults, format parsing, and visible configuration errors.
+- `tests/context/` covers bounded session context, work identity, and title formatting as separate suites.
+- `tests/retitling/` separates generation ownership, automatic triggers, native repair, command diagnostics, and title-policy behavior. Shared support in `tests/support/retitle-harness.js` supplies real in-memory OMP sessions and extension registration; each scenario keeps its literal setup and assertions.
+- `tests/omp/title-policy.test.js` isolates home/project configuration in subprocesses to check prompt precedence, edits, blank defaults, format parsing, and visible configuration errors.
 
 Keep regression assertions about consumer-visible behavior and invariants. Do not pin instruction wording, dependency-version strings, registration plumbing, or implementation layout. Use a throwaway runtime probe for wiring. In-memory session fixtures do not need timers, external credentials, or cleanup hooks.
 

@@ -85,7 +85,7 @@ Only these fixed substitutions are supported—no expressions, conditionals, or 
 
 Without `format` frontmatter, the Markdown body is a prompt for the **complete title**, and the plugin does not force a repo/ticket prefix. Exact instruction-following depends on the configured title model; use `format` when identifiers and ordering must survive small-model omissions. Custom policies generate even when a ticket supplies an explicit subject, so that optimization cannot bypass your instructions.
 
-With no override, or a blank selected override, the bundled [default policy](/title-prompt.md) retains today's deterministic prefix and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
+With no override, or a blank selected override, the bundled [default policy](/prompts/default-title.md) retains the deterministic prefix and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
 
 Edits are read on the next generation. Run `/retitle` to apply them without restarting; ordinary unchanged-task follow-ups do not regenerate just because the file changed. `/retitle status` shows the prompt path and mode that the next generation will use. Treat project prompt files as trusted instructions and review them accordingly. Native OMP also recognizes `TITLE_SYSTEM.md`; the optional `format` frontmatter is a plugin feature, not a claim of native template support.
 
@@ -105,7 +105,7 @@ Releases before 0.10.0 do not implement this subcommand. If `/retitle status` on
 
 See the [knowledge base](/docs/README.md) for the behavioral contract, architecture
 and language decisions, compatibility boundaries, and development/QA procedures.
-The implementation remains three JavaScript ES modules with no build step.
+The implementation uses plain JavaScript ES modules grouped by responsibility under `src/`, with no build step.
 
 ## Compatibility
 
