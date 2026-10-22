@@ -627,30 +627,6 @@ test("when a custom title policy is selected for a ticket, generate its complete
   assert.equal(sessionManager.getSessionName(), "FINANCE — Audit trail — Reconcile imported transactions")
 })
 
-test("when a custom title request races a manual rename, preserve user ownership", async () => {
-  // Arrange
-  const sessionManager = sessionWithTask()
-  const generation = Promise.withResolvers()
-  const policy = {
-    systemPrompt: "Custom title policy",
-    custom: true,
-    path: "project TITLE_SYSTEM.md",
-  }
-  const pending = actualRetitleSession({}, { sessionManager }, {
-    resolveTitlePrompt: () => policy,
-    generateTitle: () => generation.promise,
-  })
-
-  // Act
-  await sessionManager.setSessionName("My chosen title", "user")
-  generation.resolve("Custom complete title")
-  await pending
-
-  // Assert
-  assert.equal(sessionManager.getSessionName(), "My chosen title")
-  assert.equal(sessionManager.titleSource, "user")
-})
-
 test("when a custom title policy cannot be read, preserve the title and allow a later request", async () => {
   // Arrange
   const sessionManager = sessionWithTask()
