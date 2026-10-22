@@ -2,10 +2,11 @@ import {
   canRetitle,
   generateTitleWithOmp,
   getLoadedPluginInfo,
+  resolveTitlePrompt,
   setAutoSessionName,
   subscribeToSessionTitles,
 } from "./omp-adapter.js"
-import { titleContextFromSession, titleWithIdentity } from "./title-context.js"
+import { titleContextFromSession, titleWithFormat } from "./title-context.js"
 
 const pendingRetitles = new WeakMap()
 const lifecycleByManager = new WeakMap()
@@ -78,7 +79,7 @@ export default function autoRetitleExtension(pi, options = {}) {
     handler: async (args, ctx) => {
       const action = args.trim()
       if (action === "status") {
-        ctx.ui?.notify?.(retitleStatus(ctx), "info")
+        ctx.ui?.notify?.(retitleStatus(ctx, options), "info")
         return
       }
       if (action) {
@@ -111,12 +112,14 @@ export async function retitleSession(event, ctx, options = {}, reason = "command
   pendingRetitles.set(sessionManager, request)
 
   try {
+    const resolvePrompt = options.resolveTitlePrompt ?? resolveTitlePrompt
+    const titlePrompt = resolvePrompt(ctx)
     const generateTitle = options.generateTitle ?? generateTitleWithOmp
     let description = context.subject
-    if (!description) {
-      description = await generateTitle(context.input, ctx, options.pi)
+    if (titlePrompt.custom || !description) {
+      description = await generateTitle(context.input, ctx, options.pi, titlePrompt)
     }
-    const title = titleWithIdentity(description, context)
+    const title = titleWithFormat(description, context, titlePrompt.format)
 
     if (
       !title ||
@@ -258,7 +261,7 @@ function repairBlocker(sessionManager, lifecycle) {
   return undefined
 }
 
-function retitleStatus(ctx) {
+function retitleStatus(ctx, options) {
   const manager = ctx?.sessionManager
   const lifecycle = manager && lifecycleByManager.get(manager)
   const runtime = getLoadedPluginInfo()
@@ -272,6 +275,18 @@ function retitleStatus(ctx) {
     `Ownership: ${manager?.titleSource ?? "unowned"}`,
     `Repository: ${context?.repository || "(unknown)"}; reference: ${context?.reference || "(none)"}`,
   ]
+  try {
+    const resolvePrompt = options.resolveTitlePrompt ?? resolveTitlePrompt
+    const titlePrompt = resolvePrompt(ctx)
+    let mode = "default description and identity prefix"
+    if (titlePrompt.custom) {
+      mode = "custom full title"
+      if (titlePrompt.format) mode = "custom format and description prompt"
+    }
+    lines.push(`Title prompt (next generation): ${titlePrompt.path}; mode: ${mode}`)
+  } catch (error) {
+    lines.push(`Title prompt (next generation): unavailable — ${error.message ?? error}`)
+  }
   if (lifecycle) {
     let observer = "unavailable"
     if (typeof lifecycle.unsubscribe === "function") observer = "active"

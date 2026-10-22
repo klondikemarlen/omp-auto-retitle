@@ -41,12 +41,22 @@ export function titleInputFromCompaction(entry) {
     compactText(entry?.summary, MAX_COMPACTION_SUMMARY_LENGTH)
 }
 
-export function titleWithIdentity(description, context) {
+export function titleWithFormat(description, context, format) {
   const text = typeof description === "string" ? description.trim() : ""
   if (!text) return ""
+  if (!format) return text
 
-  const prefix = [context.repository, context.reference].filter(Boolean).join(" ")
-  return prefix ? `${prefix}: ${text}` : text
+  const identity = [context.repository, context.reference].filter(Boolean).join(" ")
+  const values = {
+    repository: context.repository ?? "",
+    reference: context.reference ?? "",
+    description: text,
+    prefix: "",
+  }
+  if (identity) values.prefix = `${identity}: `
+
+  return format.replace(/\{(repository|reference|description|prefix)\}/g, (_match, field) => values[field])
+    .replace(/\s+/g, " ").trim()
 }
 
 function titleReference(evidence, repository) {

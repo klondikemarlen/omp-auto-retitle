@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { titleInputFromCompaction, titleContextFromSession, titleWithIdentity } from "./title-context.js"
+import { titleInputFromCompaction, titleContextFromSession, titleWithFormat } from "./title-context.js"
 
 function contextFor(entries) {
   return { sessionManager: { getBranch: () => entries } }
@@ -302,7 +302,7 @@ test("when later tools mention incidental tickets, preserve the user's selected 
 
   // Act
   const context = titleContextFromSession({}, ctx)
-  const title = titleWithIdentity("Reconcile bank statements", context)
+  const title = titleWithFormat("Reconcile bank statements", context, "{prefix}{description}")
 
   // Assert
   assert.equal(title, "FIN-314: Reconcile bank statements")
@@ -326,7 +326,7 @@ test("when the model omits identifiers, retain repository and Jira identity in t
   const context = titleContextFromSession({}, ctx)
 
   // Act
-  const title = titleWithIdentity("Reconcile bank imports", context)
+  const title = titleWithFormat("Reconcile bank imports", context, "{prefix}{description}")
 
   // Assert
   assert.equal(title, "ledger ACC-42: Reconcile bank imports")
@@ -338,7 +338,7 @@ test("when there is no ticket, title the question with its repository", () => {
   const context = titleContextFromSession({}, ctx)
 
   // Act
-  const title = titleWithIdentity("Explain duplicate transactions", context)
+  const title = titleWithFormat("Explain duplicate transactions", context, "{prefix}{description}")
 
   // Assert
   assert.equal(title, "ledger: Explain duplicate transactions")
@@ -349,7 +349,7 @@ test("when generation is blank, do not turn identity alone into a title", () => 
   const context = { repository: "ledger", reference: "ACC-42" }
 
   // Act / Assert
-  assert.equal(titleWithIdentity(" \n ", context), "")
+  assert.equal(titleWithFormat(" \n ", context, "{prefix}{description}"), "")
 })
 
 test("when a GitHub issue belongs to the working repository, keep its compact identity", () => {
@@ -360,7 +360,7 @@ test("when a GitHub issue belongs to the working repository, keep its compact id
   const context = titleContextFromSession({}, ctx)
 
   // Act
-  const title = titleWithIdentity("Reassess advisor repairs", context)
+  const title = titleWithFormat("Reassess advisor repairs", context, "{prefix}{description}")
 
   // Assert
   assert.equal(title, "omp-verifier #150: Reassess advisor repairs")
@@ -374,7 +374,7 @@ test("when a user names a pull request without a URL, retain its identity", () =
   const context = titleContextFromSession({}, ctx)
 
   // Act
-  const title = titleWithIdentity("Prevent duplicate imports", context)
+  const title = titleWithFormat("Prevent duplicate imports", context, "{prefix}{description}")
 
   // Assert
   assert.equal(title, "ledger PR#42: Prevent duplicate imports")
@@ -395,4 +395,26 @@ test("when a reference follows long single-line background, retain the nearby ta
 
   // Assert
   assert.match(input, /acme\/bank #150: Reconcile statement imports/)
+})
+
+test("when a title format places the ticket first, retain identifiers omitted by the model", () => {
+  // Arrange
+  const context = { repository: "ledger", reference: "PR#42" }
+
+  // Act
+  const title = titleWithFormat("Prevent duplicate imports", context, "{reference} | {repository} | {description}")
+
+  // Assert
+  assert.equal(title, "PR#42 | ledger | Prevent duplicate imports")
+})
+
+test("when the default format has no identity, omit the entire prefix", () => {
+  // Arrange
+  const context = { repository: "", reference: "" }
+
+  // Act
+  const title = titleWithFormat("Explain transaction isolation", context, "{prefix}{description}")
+
+  // Assert
+  assert.equal(title, "Explain transaction isolation")
 })

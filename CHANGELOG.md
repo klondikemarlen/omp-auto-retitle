@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0
+
+### Added
+
+- Customize session titles with project- or user-level `TITLE_SYSTEM.md`, retaining the bundled default when no nonblank override exists.
+- Use optional `format` frontmatter for deterministic repository/ticket/description ordering, or plain Markdown for a complete-title prompt.
+- Apply prompt edits on the next generation or `/retitle`, and report the next-generation prompt source/mode in `/retitle status`.
+
+### Changed
+
+- Store the default policy in a packaged Markdown asset while retaining default title layout, explicit-subject optimization, ownership, and automatic cadence.
+
 ## 0.10.1
 
 ### Fixed

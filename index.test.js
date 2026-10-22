@@ -3,7 +3,18 @@ import { test } from "node:test"
 
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager"
 
-import autoRetitleExtension, { retitleSession } from "./index.js"
+import autoRetitleExtension, { retitleSession as actualRetitleSession } from "./index.js"
+
+function retitleSession(event, ctx, options = {}, reason = "command") {
+  return actualRetitleSession(event, ctx, {
+    resolveTitlePrompt: defaultPromptPolicy,
+    ...options,
+  }, reason)
+}
+
+function defaultPromptPolicy() {
+  return { systemPrompt: "Default test title prompt", format: "{prefix}{description}", custom: false, path: "default test prompt" }
+}
 
 function sessionWithTask() {
   const session = SessionManager.inMemory("/workspace/accounting")
@@ -11,7 +22,7 @@ function sessionWithTask() {
   return session
 }
 
-function extensionHarness(generateTitle) {
+function extensionHarness(generateTitle, resolveTitlePrompt = defaultPromptPolicy) {
   const handlers = new Map()
   const commands = new Map()
   const notifications = []
@@ -20,7 +31,7 @@ function extensionHarness(generateTitle) {
     on(name, callback) { handlers.set(name, callback) },
     registerCommand(name, command) { commands.set(name, command) },
   }
-  autoRetitleExtension(pi, { generateTitle })
+  autoRetitleExtension(pi, { generateTitle, resolveTitlePrompt })
   return {
     handlers,
     commands,
@@ -579,4 +590,83 @@ test("when a retitle argument is unknown, report usage without renaming", async 
   // Assert
   assert.deepEqual(sessionManager.getEntries(), entries)
   assert.match(harness.notifications.at(-1)[0], /Usage: \/retitle \[status\]/)
+})
+
+test("when a custom title policy is selected, persist its complete generated format", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  const harness = extensionHarness(async () => "OPS / BANKING / Import reconciliation", () => ({
+    systemPrompt: "Custom title policy",
+    custom: true,
+    path: "project TITLE_SYSTEM.md",
+  }))
+
+  // Act
+  await harness.handlers.get("agent_end")({}, harness.ctx(sessionManager))
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "OPS / BANKING / Import reconciliation")
+})
+
+test("when a custom title policy is selected for a ticket, generate its complete format", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching", timestamp: 1 })
+  const harness = extensionHarness(async () => {
+    return "FINANCE — Audit trail — Reconcile imported transactions"
+  }, () => ({
+    systemPrompt: "Custom title policy",
+    custom: true,
+    path: "project TITLE_SYSTEM.md",
+  }))
+
+  // Act
+  await harness.handlers.get("agent_end")({}, harness.ctx(sessionManager))
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "FINANCE — Audit trail — Reconcile imported transactions")
+})
+
+test("when a custom title policy cannot be read, preserve the title and allow a later request", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  await sessionManager.setSessionName("Existing title", "auto")
+  let readable = false
+  const harness = extensionHarness(async () => "Later complete title", () => {
+    if (!readable) throw new Error("TITLE_SYSTEM.md is unreadable")
+    return {
+      systemPrompt: "Custom title policy",
+      custom: true,
+      path: "project TITLE_SYSTEM.md",
+    }
+  })
+  const ctx = harness.ctx(sessionManager)
+
+  // Act
+  await assert.rejects(harness.handlers.get("agent_end")({}, ctx), /TITLE_SYSTEM\.md is unreadable/)
+  assert.equal(sessionManager.getSessionName(), "Existing title")
+
+  readable = true
+  await harness.commands.get("retitle").handler("", ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "Later complete title")
+})
+
+test("when a custom format supplies identifiers, compose them around the generated description", async () => {
+  // Arrange
+  const sessionManager = sessionWithTask()
+  sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching", timestamp: 1 })
+  const harness = extensionHarness(async () => "Reconcile imported transactions", () => ({
+    systemPrompt: "Describe the task",
+    format: "{reference} | {repository} | {description}",
+    custom: true,
+    path: "project TITLE_SYSTEM.md",
+  }))
+
+  // Act
+  await harness.handlers.get("agent_end")({}, harness.ctx(sessionManager))
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "ACC-43 | accounting | Reconcile imported transactions")
 })
