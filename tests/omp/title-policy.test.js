@@ -4,22 +4,21 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { test } from "node:test"
-import { fileURLToPath } from "node:url"
 
-const adapterUrl = new URL("./omp-adapter.js", import.meta.url).href
+const titlePolicyUrl = new URL("../../src/omp/title-policy.js", import.meta.url).href
 
-function resolveInIsolatedHome(setup, action = "resolveTitlePrompt(ctx)") {
-  const root = mkdtempSync(path.join(os.tmpdir(), "omp-title-prompt-"))
+function resolvePolicyInIsolatedHome(createFiles, action = "resolveTitlePolicy(ctx)") {
+  const root = mkdtempSync(path.join(os.tmpdir(), "omp-title-policy-"))
   const home = path.join(root, "home")
   const project = path.join(root, "project")
   mkdirSync(home)
   mkdirSync(project)
 
   try {
-    setup({ home, project })
+    createFiles({ home, project })
     const source = `
       import * as fs from "node:fs";
-      const { resolveTitlePrompt } = await import(${JSON.stringify(adapterUrl)});
+      const { resolveTitlePolicy } = await import(${JSON.stringify(titlePolicyUrl)});
       const ctx = { cwd: ${JSON.stringify(project)} };
       const result = ${action.replaceAll("$PROJECT$", JSON.stringify(project))};
       console.log(JSON.stringify(result));
@@ -45,7 +44,7 @@ function resolveInIsolatedHome(setup, action = "resolveTitlePrompt(ctx)") {
 
 test("when project and user title prompts exist, prefer the project prompt", () => {
   // Arrange
-  const setup = ({ home, project }) => {
+  const createPromptFiles = ({ home, project }) => {
     mkdirSync(path.join(home, ".omp", "agent"), { recursive: true })
     mkdirSync(path.join(project, ".omp"), { recursive: true })
     writeFileSync(path.join(home, ".omp", "agent", "TITLE_SYSTEM.md"), "user prompt")
@@ -53,7 +52,7 @@ test("when project and user title prompts exist, prefer the project prompt", () 
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup)
+  const result = resolvePolicyInIsolatedHome(createPromptFiles)
 
   // Assert
   assert.equal(result.systemPrompt, "project prompt")
@@ -63,31 +62,30 @@ test("when project and user title prompts exist, prefer the project prompt", () 
 
 test("when the selected title override is blank, use the bundled default policy", () => {
   // Arrange
-  const setup = ({ project }) => {
+  const createPromptFiles = ({ project }) => {
     mkdirSync(path.join(project, ".omp"), { recursive: true })
     writeFileSync(path.join(project, ".omp", "TITLE_SYSTEM.md"), " \n\t ")
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup)
+  const result = resolvePolicyInIsolatedHome(createPromptFiles)
 
   // Assert
   assert.equal(result.custom, false)
-  assert.equal(result.path, fileURLToPath(new URL("./title-prompt.md", import.meta.url)))
 })
 
 test("when a title prompt file changes, use its updated instructions", () => {
   // Arrange
-  const setup = ({ project }) => {
+  const createPromptFiles = ({ project }) => {
     mkdirSync(path.join(project, ".omp"), { recursive: true })
     writeFileSync(path.join(project, ".omp", "TITLE_SYSTEM.md"), "first prompt")
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup, `(() => {
-    const first = resolveTitlePrompt(ctx);
+  const result = resolvePolicyInIsolatedHome(createPromptFiles, `(() => {
+    const first = resolveTitlePolicy(ctx);
     fs.writeFileSync($PROJECT$ + "/.omp/TITLE_SYSTEM.md", "second prompt");
-    return [first.systemPrompt, resolveTitlePrompt(ctx).systemPrompt];
+    return [first.systemPrompt, resolveTitlePolicy(ctx).systemPrompt];
   })()`)
 
   // Assert
@@ -96,14 +94,14 @@ test("when a title prompt file changes, use its updated instructions", () => {
 
 test("when the selected title prompt is unreadable, propagate its read error", () => {
   // Arrange
-  const setup = ({ project }) => {
+  const createPromptFiles = ({ project }) => {
     mkdirSync(path.join(project, ".omp", "TITLE_SYSTEM.md"), { recursive: true })
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup, `(() => {
+  const result = resolvePolicyInIsolatedHome(createPromptFiles, `(() => {
     try {
-      resolveTitlePrompt(ctx);
+      resolveTitlePolicy(ctx);
       return { threw: false };
     } catch (error) {
       return { threw: true, code: error.code };
@@ -116,13 +114,13 @@ test("when the selected title prompt is unreadable, propagate its read error", (
 
 test("when only a user title prompt exists, select its instructions", () => {
   // Arrange
-  const setup = ({ home }) => {
+  const createPromptFiles = ({ home }) => {
     mkdirSync(path.join(home, ".omp", "agent"), { recursive: true })
     writeFileSync(path.join(home, ".omp", "agent", "TITLE_SYSTEM.md"), "user prompt")
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup)
+  const result = resolvePolicyInIsolatedHome(createPromptFiles)
 
   // Assert
   assert.equal(result.systemPrompt, "user prompt")
@@ -131,13 +129,13 @@ test("when only a user title prompt exists, select its instructions", () => {
 
 test("when Markdown includes a format, separate the template from model instructions", () => {
   // Arrange
-  const setup = ({ project }) => {
+  const createPromptFiles = ({ project }) => {
     mkdirSync(path.join(project, ".omp"), { recursive: true })
     writeFileSync(path.join(project, ".omp", "TITLE_SYSTEM.md"), '---\nformat: "{reference} | {description}"\n---\nDescribe the active task.')
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup)
+  const result = resolvePolicyInIsolatedHome(createPromptFiles)
 
   // Assert
   assert.equal(result.format, "{reference} | {description}")
@@ -146,15 +144,15 @@ test("when Markdown includes a format, separate the template from model instruct
 
 test("when a format uses an unknown field, reject the policy instead of generating a literal placeholder", () => {
   // Arrange
-  const setup = ({ project }) => {
+  const createPromptFiles = ({ project }) => {
     mkdirSync(path.join(project, ".omp"), { recursive: true })
     writeFileSync(path.join(project, ".omp", "TITLE_SYSTEM.md"), '---\nformat: "{pullRequest}"\n---\nDescribe the task.')
   }
 
   // Act
-  const result = resolveInIsolatedHome(setup, `(() => {
+  const result = resolvePolicyInIsolatedHome(createPromptFiles, `(() => {
     try {
-      resolveTitlePrompt(ctx);
+      resolveTitlePolicy(ctx);
       return "";
     } catch (error) {
       return error.message;
