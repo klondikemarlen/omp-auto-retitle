@@ -19,7 +19,7 @@ test("when OMP writes a native auto title, restore the accepted title without ge
   await sessionManager.setSessionName("Native title", "auto", "omp-native-auto-title")
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+  assert.equal(sessionManager.getSessionName(), "Accounting task 1 — accounting")
   assert.equal(generations, 1)
 })
 
@@ -111,7 +111,7 @@ test("when a native title write occurs during newer generation, keep its interim
   // Finish the controlled request after proving the old title was not restored.
   generation.resolve("Updated task")
   await retitling
-  assert.equal(sessionManager.getSessionName(), "accounting: Updated task")
+  assert.equal(sessionManager.getSessionName(), "Updated task — accounting")
   assert.equal(calls, 2)
 })
 
@@ -129,7 +129,7 @@ test("when conversation progress defers an auto overwrite, repair at the same-ta
   await harness.handlers.get("agent_end")({}, ctx)
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+  assert.equal(sessionManager.getSessionName(), "Accounting task 1 — accounting")
   assert.equal(generations, 1)
   assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:settled-repair")
 })
@@ -147,6 +147,6 @@ test("when deferred repair is followed by a ticket change, commit the new task i
   await harness.handlers.get("agent_end")({}, ctx)
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Fix transaction matching")
+  assert.equal(sessionManager.getSessionName(), "ACC-43: Fix transaction matching — accounting")
   assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:task")
 })

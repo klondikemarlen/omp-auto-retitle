@@ -19,7 +19,7 @@ test("when the first agent run completes, title once and skip unchanged followup
 
   // Assert
   assert.equal(generations, 1)
-  assert.equal(sessionManager.getSessionName(), "accounting: Accounting task 1")
+  assert.equal(sessionManager.getSessionName(), "Accounting task 1 — accounting")
 })
 
 test("when the active ticket changes, retitle on the next completed agent run", async () => {
@@ -58,7 +58,7 @@ test("when todo init succeeds, retitle once at the next agent end", async () => 
 
   // Assert
   assert.equal(generations, 2)
-  assert.equal(sessionManager.getSessionName(), "accounting: Plan task 2")
+  assert.equal(sessionManager.getSessionName(), "Plan task 2 — accounting")
 })
 
 test("when compaction or the command requests retitling, use the corresponding title trigger", async () => {
@@ -94,7 +94,7 @@ test("when a ticket supplies a subject, retain it across replans without a model
   await harness.handlers.get("agent_end")({}, ctx)
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Fix transaction matching")
+  assert.equal(sessionManager.getSessionName(), "ACC-43: Fix transaction matching — accounting")
 })
 
 test("when the active ticket changes, do not reuse another ticket's explicit subject", async () => {
@@ -110,5 +110,5 @@ test("when the active ticket changes, do not reuse another ticket's explicit sub
   await harness.handlers.get("agent_end")({}, ctx)
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "accounting ACC-43: Explain transaction isolation")
+  assert.equal(sessionManager.getSessionName(), "ACC-43: Explain transaction isolation — accounting")
 })

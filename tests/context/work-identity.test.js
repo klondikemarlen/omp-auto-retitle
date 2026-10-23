@@ -133,7 +133,7 @@ test("when later tools mention incidental tickets, preserve the user's selected 
 
   // Act
   const context = buildSessionTitleContext({}, ctx)
-  const title = formatSessionTitle("Reconcile bank statements", context, "{prefix}{description}")
+  const title = formatSessionTitle("Reconcile bank statements", context, "{prefix}{description}{suffix}")
 
   // Assert
   assert.equal(title, "FIN-314: Reconcile bank statements")
@@ -147,10 +147,10 @@ test("when a GitHub issue belongs to the working repository, keep its compact id
   const context = buildSessionTitleContext({}, ctx)
 
   // Act
-  const title = formatSessionTitle("Reassess advisor repairs", context, "{prefix}{description}")
+  const title = formatSessionTitle("Reassess advisor repairs", context, "{prefix}{description}{suffix}")
 
   // Assert
-  assert.equal(title, "omp-verifier #150: Reassess advisor repairs")
+  assert.equal(title, "#150: Reassess advisor repairs — omp-verifier")
 })
 
 test("when a user names a pull request without a URL, retain its identity", () => {
@@ -161,10 +161,10 @@ test("when a user names a pull request without a URL, retain its identity", () =
   const context = buildSessionTitleContext({}, ctx)
 
   // Act
-  const title = formatSessionTitle("Prevent duplicate imports", context, "{prefix}{description}")
+  const title = formatSessionTitle("Prevent duplicate imports", context, "{prefix}{description}{suffix}")
 
   // Assert
-  assert.equal(title, "ledger PR#42: Prevent duplicate imports")
+  assert.equal(title, "PR#42: Prevent duplicate imports — ledger")
 })
 
 test("when a reference follows long single-line background, retain the nearby task description", () => {
