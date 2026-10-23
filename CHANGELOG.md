@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0
+
+### Changed
+
+- Put ticket information first in default titles: `WRAPX-123: Some Stuff — wrap`, with the repository after the task description.
+- Without a ticket, use `Some Stuff — wrap`; omit optional separators when their identity field is absent.
+- Make `{prefix}` the optional ticket-only prefix and add `{suffix}` for the optional repository suffix. Custom formats using `{prefix}` should add `{suffix}` to retain the repository; explicit raw-field formats and full-title prompts keep their ordering.
+
 ## 0.11.1
 
 ### Changed

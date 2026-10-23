@@ -16,12 +16,12 @@ Intelligent OMP session title management over time.
 This plugin is for intelligent session title management over time. It is not just a
 "rename after compact" hook.
 
-By default, titles use `repo ticket: task description`, for example:
+By default, titles use `ticket: task description — repo`, for example:
 
-- `omp-verifier #150: Reassess advisor repairs`
-- `ledger ACC-42: Reconcile bank imports`
-- `ledger PR#42: Prevent duplicate imports`
-- `ledger: Explain duplicate transactions`
+- `#150: Reassess advisor repairs — omp-verifier`
+- `ACC-42: Reconcile bank imports — ledger`
+- `PR#42: Prevent duplicate imports — ledger`
+- `Explain duplicate transactions — ledger`
 
 The repo/project label comes from the session working-directory basename. GitHub
 issue/PR URLs, short references such as `#150` or `PR #42`, and Jira keys are
@@ -31,7 +31,7 @@ user only pasted a link. This does not fetch Jira/GitHub metadata.
 
 The latest explicit user reference takes priority; otherwise the latest
 recognized conversation/summary reference is used. Cross-repository GitHub
-references retain their owner/repository. The identity prefix is added locally,
+references retain their owner/repository. Ticket and repository placement is composed locally,
 so it does not depend on the title model remembering identifiers. Attachment
 indices such as `Image #1` or `Screenshot #2` are not ticket references.
 
@@ -79,13 +79,16 @@ Supported fields:
 - `{repository}`: the session working-directory label.
 - `{reference}`: the selected Jira/GitHub issue or PR reference.
 - `{description}`: the model-generated task description.
-- `{prefix}`: the default `repo ticket: ` prefix, omitted entirely when no identity is available.
+- `{prefix}`: the optional `ticket: ` prefix, omitted when no reference is available.
+- `{suffix}`: the optional ` — repo` suffix, omitted when no repository is available.
 
-Only these fixed substitutions are supported—no expressions, conditionals, or code execution. Missing repository/reference values become empty strings; literal punctuation remains as written. `{prefix}{description}` preserves the default layout without dangling separators when identity is absent. Unknown fields and invalid format values report an error instead of silently changing the title.
+Only these fixed substitutions are supported—no expressions, conditionals, or code execution. Missing repository/reference values become empty strings; literal punctuation remains as written. `{prefix}{description}{suffix}` preserves the default layout without dangling separators when identity is absent. Unknown fields and invalid format values report an error instead of silently changing the title.
+
+Since 0.12.0, `{prefix}` contains only the ticket; add `{suffix}` to include the repository after the description. Explicit `{repository}` and `{reference}` fields retain their literal placement. Terminal-owned application suffixes (such as ` — ompi`) are separate from the session title.
 
 Without `format` frontmatter, the Markdown body is a prompt for the **complete title**, and the plugin does not force a repo/ticket prefix. Exact instruction-following depends on the configured title model; use `format` when identifiers and ordering must survive small-model omissions. Custom policies generate even when a ticket supplies an explicit subject, so that optimization cannot bypass your instructions.
 
-With no override, or a blank selected override, the bundled [default policy](/prompts/default-title.md) retains the deterministic prefix and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
+With no override, or a blank selected override, the bundled [default policy](/prompts/default-title.md) uses ticket-first ordering and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
 
 Edits are read on the next generation. Run `/retitle` to apply them without restarting; ordinary unchanged-task follow-ups do not regenerate just because the file changed. `/retitle status` shows the prompt path and mode that the next generation will use. Treat project prompt files as trusted instructions and review them accordingly. Native OMP also recognizes `TITLE_SYSTEM.md`; the optional `format` frontmatter is a plugin feature, not a claim of native template support.
 

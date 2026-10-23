@@ -1,5 +1,5 @@
 ---
-format: "{prefix}{description}"
+format: "{prefix}{description}{suffix}"
 ---
 
 Write a concise, recognizable title for the user's actual task or question.
