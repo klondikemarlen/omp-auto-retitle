@@ -45,7 +45,7 @@ function describeNextTitlePolicy(extensionContext, options) {
 }
 
 function describeTitlePolicyMode(titlePolicy) {
-  if (!titlePolicy.custom) return "default description and identity prefix"
+  if (!titlePolicy.custom) return "default ticket-first format and description"
   if (titlePolicy.format) return "custom format and description prompt"
 
   return "custom full title"

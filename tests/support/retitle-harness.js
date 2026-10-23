@@ -16,7 +16,7 @@ export function createAccountingSession() {
 export function getDefaultTitlePolicy() {
   return {
     systemPrompt: "Default test title prompt",
-    format: "{prefix}{description}",
+    format: "{prefix}{description}{suffix}",
     custom: false,
     path: "default test prompt",
   }
