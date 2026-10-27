@@ -118,13 +118,20 @@ function compactEvidence(line, description, { match, reference, repository, shor
   const before = line.slice(Math.max(0, match.index - 35), match.index)
   const after = line.slice(match.index + match[0].length)
   const details = `${after} ${description} ${before}`
-  const explicitSubject = after.match(/^\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)/)?.[1]
 
   return {
     reference,
     repository,
     shortReference,
-    subject: normalizeContextText(explicitSubject, MAX_USER_CONTEXT_LENGTH),
+    subject: explicitWorkSubject(after),
     text: normalizeContextText(`${reference}: ${details}`, MAX_WORK_EVIDENCE_LENGTH),
   }
+}
+
+function explicitWorkSubject(text) {
+  const candidate = text.match(/^\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)/)?.[1]
+  const subject = normalizeContextText(candidate, MAX_USER_CONTEXT_LENGTH)
+  if (/^(?:\{|\[\s*(?:\{|["']))/.test(subject)) return ""
+
+  return subject
 }

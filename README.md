@@ -37,7 +37,7 @@ indices such as `Image #1` or `Screenshot #2` are not ticket references.
 
 With the default policy, when a reference supplies an explicit `KEY: subject` or `#number: subject`, the
 plugin uses that grounded subject directly. The same ticket retains its latest
-supplied subject across incidental replans, without a model call.
+readable subject across incidental replans, without a model call. Raw Python/JSON tracker containers are not explicit subjects; they do not replace an earlier readable subject or bypass description generation.
 Otherwise OMP generates a short description from the original request, recent
 clarifications, and compaction history. Without a ticket, it summarizes the
 actual task or question. Generated wording still depends on the configured
