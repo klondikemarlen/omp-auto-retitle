@@ -250,3 +250,90 @@ test("when an older title write finishes late, preserve the newer repair cache",
   // Assert
   assert.equal(sessionManager.getSessionName(), "Latest task — accounting")
 })
+
+test("when a tool supplies a Python dictionary as the ticket subject, generate a readable task title", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "Prepare the province-autofill review app for #251",
+    timestamp: 1,
+  })
+  sessionManager.appendMessage({
+    role: "toolResult",
+    toolCallId: "issue-metadata",
+    toolName: "bash",
+    content: [{
+      type: "text",
+      text: "#251: {'state': 'OPEN', 'assignees': {'nodes': []}, 'projectItems': {'nodes': []}}",
+    }],
+    isError: false,
+    timestamp: 2,
+  })
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, {
+    generateTitle: async () => "Review province autofill",
+  })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#251: Review province autofill — accounting")
+})
+
+test("when a tool supplies JSON metadata as the ticket subject, generate a readable task title", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "Prepare the province-autofill review app for #251",
+    timestamp: 1,
+  })
+  sessionManager.appendMessage({
+    role: "toolResult",
+    toolCallId: "issue-metadata",
+    toolName: "bash",
+    content: [{
+      type: "text",
+      text: '#251: {"state":"OPEN","assignees":{"nodes":[]},"projectItems":{"nodes":[]}}',
+    }],
+    isError: false,
+    timestamp: 2,
+  })
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, {
+    generateTitle: async () => "Review province autofill",
+  })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#251: Review province autofill — accounting")
+})
+
+test("when later metadata follows a readable ticket subject, preserve the subject without generation", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "#251: [Bug] Preserve {province} selection",
+    timestamp: 1,
+  })
+  sessionManager.appendMessage({
+    role: "toolResult",
+    toolCallId: "issue-metadata",
+    toolName: "bash",
+    content: [{
+      type: "text",
+      text: '#251: {"state":"OPEN","assignees":{"nodes":[]}}',
+    }],
+    isError: false,
+    timestamp: 2,
+  })
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, {
+    generateTitle: () => assert.fail("A readable ticket subject must survive metadata updates"),
+  })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#251: [Bug] Preserve {province} selection — accounting")
+})
