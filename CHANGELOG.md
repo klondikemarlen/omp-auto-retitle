@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1
+
+### Fixed
+
+- Keep raw Python/JSON tracker metadata out of direct ticket titles; retain a readable ticket subject or generate a task description through OMP's configured title route.
+
 ## 0.12.0
 
 ### Changed
