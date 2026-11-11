@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1
+
+### Changed
+
+- Strengthen regression checks that manual titles and explicit ticket subjects skip inference, so generation-error recovery cannot hide an unexpected model call. Runtime behavior is unchanged.
+
 ## 0.13.0
 
 ### Changed
