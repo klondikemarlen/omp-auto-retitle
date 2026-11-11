@@ -83,7 +83,11 @@ test("when a ticket supplies a subject, retain it across replans without a model
   // Arrange
   const sessionManager = createAccountingSession()
   sessionManager.appendMessage({ role: "user", content: "ACC-43: Fix transaction matching. Acknowledge with ready.", timestamp: 1 })
-  const harness = createExtensionHarness(() => assert.fail("An explicit ticket subject does not need generation"))
+  let generations = 0
+  const harness = createExtensionHarness(async () => {
+    generations += 1
+    return "Generated replacement"
+  })
   const ctx = harness.createContext(sessionManager)
   await harness.handlers.get("agent_end")({}, ctx)
 
@@ -94,6 +98,7 @@ test("when a ticket supplies a subject, retain it across replans without a model
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "ACC-43: Fix transaction matching — accounting")
+  assert.equal(generations, 0)
 })
 
 test("when the active ticket changes, do not reuse another ticket's explicit subject", async () => {
