@@ -132,14 +132,19 @@ test("when the title is manually owned, skip generation entirely", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
   await sessionManager.setSessionName("My chosen title", "user")
+  let generations = 0
 
   // Act
   const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, {
-    generateTitle: () => assert.fail("Manual titles must not request generation"),
+    generateTitle: async () => {
+      generations += 1
+      return "Generated replacement"
+    },
   })
 
   // Assert
   assert.equal(outcome.status, "protected")
+  assert.equal(generations, 0)
 })
 
 test("when the generated title is unchanged, preserve title history", async () => {
@@ -336,14 +341,19 @@ test("when later metadata follows a readable ticket subject, preserve the subjec
     isError: false,
     timestamp: 2,
   })
+  let generations = 0
 
   // Act
   await retitleWithDefaultPolicy({}, { sessionManager }, {
-    generateTitle: () => assert.fail("A readable ticket subject must survive metadata updates"),
+    generateTitle: async () => {
+      generations += 1
+      return "Generated replacement"
+    },
   })
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "#251: [Bug] Preserve {province} selection — accounting")
+  assert.equal(generations, 0)
 })
 
 test("when inference never settles, commit an excerpt at the deadline and ignore late output", async () => {
