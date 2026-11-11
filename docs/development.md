@@ -6,11 +6,14 @@ Use Bun for the OMP runtime's TypeScript dependencies. The plugin itself is plai
 
 ```sh
 bun install
+npm run lint
 npm test
 npm run release:check
 ```
 
-`release:check` delegates to `npm test`, which runs `bun test`. There is no Docker wrapper, database, formatter, separate build gate, or CI workflow in this repository.
+`release:check` runs `npm run lint` followed by `npm test` (`bun test`). ESLint's recommended JavaScript rules cover the entry point, `src/`, tests, and the lint configuration with zero warnings allowed; `npm run lint` is non-fixing. There is no Docker wrapper, database, formatter, separate build gate, or CI workflow.
+
+Project-specific verifier requirement `project:lint`: when JavaScript, `eslint.config.js`, `package.json`, or `bun.lock` changes, execute `npm run lint` from the repository root. PASS requires exit 0 under the configured recommended rules and zero-warning policy; violations are FAIL, missing tooling or an unexecuted check is BLOCKED. This names the existing command for Verifier, not a new runner or model route.
 
 ## Behavioral verification
 
@@ -50,6 +53,7 @@ Tests do not prove that the installed OMP binary exposes the required internal A
 6. Run `/retitle status` and confirm it completes locally without a model invocation or title-history change. Verify the loaded version/path and observer state. In a disposable source process, change the package manifest version after the extension loads: the existing process must retain its captured version while a new process reports the changed one.
 7. Append ordinary same-task conversation progress before a native auto-title write. Confirm status explains the skipped immediate repair, then complete a turn and inspect `settled-repair` restoration without another title-model call. Manual ownership and changed task identity must still block stale restoration.
 8. In a disposable project's `.omp/TITLE_SYSTEM.md`, set a format with ticket-first ordering and a Markdown description prompt. Confirm `/retitle` and the first completed run preserve that format even when the model omits identifiers. Edit the format in the same process and confirm `/retitle` applies it. Check blank-file default behavior, unreadable-file diagnostics/recovery, native overwrite repair of the custom title, and manual-title preservation. Plain Markdown without a format controls the full model output, whose exact compliance remains model-dependent. Never change model routes to obtain a passing result.
+9. In a disposable source process, inject a generator that returns no output, throws, or never settles through the extension's test-only options. Confirm default no-ticket fallback, same-task title retention, the 10-second deadline, and rejection of late results. A custom policy or an unknown ticket subject must remain unchanged with an unavailable warning. Fail an automatic ticket request, then restore the native generator and complete a turn: generation must recover. Verify actual native generation separately from injected failure scenarios. Recent compiled hosts consume the cancellation signal; the pinned source may ignore it, so both wait and write ownership remain bounded.
 
 A provider-unavailable result is not successful generation evidence. Report which surfaces were observed and which remain blocked. Never claim that tests alone establish title quality across models.
 
