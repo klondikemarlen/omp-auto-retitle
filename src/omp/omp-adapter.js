@@ -68,7 +68,7 @@ function isExternalAutomaticTitle(change) {
   return typeof change.trigger !== "string" || !change.trigger.startsWith(PLUGIN_TRIGGER_PREFIX)
 }
 
-export async function generateTitleWithOmp(input, ctx, pi, titlePolicy) {
+export async function generateTitleWithOmp(input, ctx, pi, titlePolicy, signal) {
   const settings = pi?.pi?.settings
   if (!settings) {
     throw new Error("OMP title settings are unavailable in this runtime")
@@ -82,5 +82,6 @@ export async function generateTitleWithOmp(input, ctx, pi, titlePolicy) {
     ctx.model,
     undefined,
     titlePolicy.systemPrompt,
+    signal,
   )
 }

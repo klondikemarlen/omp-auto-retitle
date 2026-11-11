@@ -12,7 +12,7 @@ export function hasPendingTitleRequest(sessionManager) {
 }
 
 export function invalidatePendingTitleRequest(sessionManager) {
-  pendingRequests.get(sessionManager)?.cancel.resolve({ failure: "Request cancelled" })
+  pendingRequests.get(sessionManager)?.controller.abort(new Error("Request cancelled"))
   pendingRequests.delete(sessionManager)
 }
 
@@ -22,7 +22,7 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
   const request = {
     sessionId: sessionManager.getSessionId?.(),
     conversationLeafId: getConversationLeafId(sessionManager),
-    cancel: Promise.withResolvers(),
+    controller: new AbortController(),
   }
   pendingRequests.set(sessionManager, request)
 
@@ -54,8 +54,9 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
     }
 
     const changed = await writeAutomaticTitle(sessionManager, title, reason)
-    if (getRequestBlocker(sessionManager, request)) {
-      return { status: "stale", message: "Title request superseded during persistence" }
+    const persistenceBlocker = getRequestBlocker(sessionManager, request)
+    if (persistenceBlocker) {
+      return recordOutcome(sessionState, sessionManager, request, "stale", `Title not cached: ${persistenceBlocker}`)
     }
     if (sessionManager.getSessionName?.() !== title) {
       return recordOutcome(sessionState, sessionManager, request, "unavailable", "Title write was not accepted")
@@ -78,19 +79,31 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
 
 async function requestDescription(titleContext, extensionContext, options, titlePolicy, request) {
   const generateTitle = options.generateTitle ?? generateTitleWithOmp
-  let timer
-  const deadline = new Promise((resolve) => {
-    timer = setTimeout(() => resolve({ failure: "Title generation timed out" }), options.generationTimeoutMs ?? GENERATION_TIMEOUT_MS)
-  })
-  // The host generator has no abort parameter. Stop waiting, but never let its
-  // eventual result commit after a deadline, superseding request, or shutdown.
+  const signal = request.controller.signal
+  const interrupted = Promise.withResolvers()
+  const onAbort = () => interrupted.resolve({ failure: String(signal.reason?.message ?? signal.reason) })
+  signal.addEventListener("abort", onAbort, { once: true })
+  if (signal.aborted) onAbort()
+
+  const timer = setTimeout(
+    () => request.controller.abort(new Error("Title generation timed out")),
+    options.generationTimeoutMs ?? GENERATION_TIMEOUT_MS,
+  )
+
+  // Recent hosts cancel inference; older hosts ignore the signal. Race the wait
+  // as well, so neither can commit a late result or hold the command open.
   const generation = Promise.resolve()
-    .then(() => generateTitle(titleContext.input, extensionContext, options.pi, titlePolicy))
+    .then(() => {
+      signal.throwIfAborted()
+      return generateTitle(titleContext.input, extensionContext, options.pi, titlePolicy, signal)
+    })
     .then((description) => ({ description }), (error) => ({ failure: String(error?.message ?? error) }))
+
   try {
-    return await Promise.race([generation, deadline, request.cancel.promise])
+    return await Promise.race([generation, interrupted.promise])
   } finally {
     clearTimeout(timer)
+    signal.removeEventListener("abort", onAbort)
   }
 }
 
