@@ -62,6 +62,7 @@ function describeSessionLifecycle(sessionManager, sessionState) {
 
   return [
     `Title observer: ${observer}; generation: ${generation}; replan pending: ${sessionState.replanRequested}`,
+    `Last generation outcome: ${sessionState.lastGenerationOutcome?.message ?? "No generation attempt in this process"}`,
     `Accepted title: ${sessionState.acceptedTitle?.title ?? "(none cached in this process)"}`,
     `Repair eligibility: ${getTitleRepairBlocker(sessionManager, sessionState) ?? "ready"}`,
     `Last repair outcome: ${sessionState.lastRepairOutcome}`,

@@ -34,5 +34,5 @@ export function getMessageText(message) {
 export function normalizeContextText(value, limit = MAX_USER_CONTEXT_LENGTH) {
   if (typeof value !== "string") return ""
 
-  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit)
+  return value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, limit)
 }

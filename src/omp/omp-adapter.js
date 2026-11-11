@@ -71,7 +71,7 @@ function isExternalAutomaticTitle(change) {
 export async function generateTitleWithOmp(input, ctx, pi, titlePolicy) {
   const settings = pi?.pi?.settings
   if (!settings) {
-    return null
+    throw new Error("OMP title settings are unavailable in this runtime")
   }
 
   return generateSessionTitle(
