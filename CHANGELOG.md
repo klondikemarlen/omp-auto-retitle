@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0
+
+### Changed
+
+- Keep useful default titles when inference fails: retain an accepted same-task title or use a bounded original-request excerpt without inventing ticket descriptions or overriding custom prompts.
+- Limit title waits to 10 seconds, cancel host inference where supported, and discard superseded or shutdown requests even on hosts that ignore cancellation.
+- Distinguish fallback, unavailable, stale, protected, and unchanged results in `/retitle` and retain generation outcomes in `/retitle status`.
+- Retry unsuccessful automatic generation at the next completed turn rather than consuming the refresh opportunity before acceptance.
+
 ## 0.12.1
 
 ### Fixed

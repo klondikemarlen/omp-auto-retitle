@@ -84,3 +84,24 @@ test("when a custom format supplies identifiers, compose them around the generat
   // Assert
   assert.equal(sessionManager.getSessionName(), "ACC-43 | accounting | Reconcile imported transactions")
 })
+
+test("when a custom policy produces no title, preserve the existing title without default fallback", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  await sessionManager.setSessionName("Existing custom title", "auto")
+  const harness = createExtensionHarness(async () => null, () => ({
+    systemPrompt: "Describe the task in French",
+    format: "{description} | {repository}",
+    custom: true,
+    path: "project TITLE_SYSTEM.md",
+  }))
+  const ctx = harness.createContext(sessionManager)
+  const entries = sessionManager.getEntries().slice()
+
+  // Act
+  await harness.commands.get("retitle").handler("", ctx)
+
+  // Assert
+  assert.deepEqual(sessionManager.getEntries(), entries)
+  assert.equal(harness.notifications.at(-1)[1], "warning")
+})

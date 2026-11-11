@@ -76,7 +76,6 @@ test("when compaction or the command requests retitling, use the corresponding t
   const titleChanges = sessionManager.getEntries().filter((entry) => entry.type === "title_change")
   assert.equal(titleChanges[0].trigger, "omp-auto-retitle:session_compact")
   assert.equal(titleChanges[1].trigger, "omp-auto-retitle:command")
-  assert.equal(harness.notifications.at(-1)[0], "Session title regenerated")
   assert.equal(generations, 2)
 })
 
@@ -111,4 +110,41 @@ test("when the active ticket changes, do not reuse another ticket's explicit sub
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "ACC-43: Explain transaction isolation — accounting")
+})
+
+test("when a ticket generation fails, retry at the next completed turn and then stop", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({ role: "user", content: "Work on ACC-42", timestamp: 1 })
+  let attempts = 0
+  const harness = createExtensionHarness(async () => ++attempts === 1 ? null : "Reconcile bank statements")
+  const ctx = harness.createContext(sessionManager)
+
+  // Act
+  await harness.handlers.get("agent_end")({}, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+  await harness.handlers.get("agent_end")({}, ctx)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "ACC-42: Reconcile bank statements — accounting")
+  assert.equal(attempts, 2)
+})
+
+test("when shutdown interrupts generation, release the wait and preserve title history", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  const generation = Promise.withResolvers()
+  const harness = createExtensionHarness(() => generation.promise)
+  const ctx = harness.createContext(sessionManager)
+  const pending = harness.handlers.get("agent_end")({}, ctx)
+  const entries = sessionManager.getEntries().slice()
+
+  // Act
+  harness.handlers.get("session_shutdown")({}, ctx)
+  await pending
+  generation.resolve("Obsolete task")
+  await generation.promise
+
+  // Assert
+  assert.deepEqual(sessionManager.getEntries(), entries)
 })

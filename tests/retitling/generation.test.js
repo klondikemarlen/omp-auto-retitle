@@ -39,7 +39,7 @@ test("when generations complete out of order, keep the latest request's title", 
   assert.equal(sessionManager.getSessionName(), "Latest accounting goal — accounting")
 })
 
-test("when a newer request produces no title, discard an older request's result", async () => {
+test("when a newer request falls back locally, discard an older model result", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
   await sessionManager.setSessionName("Existing title", "auto")
@@ -54,7 +54,7 @@ test("when a newer request produces no title, discard an older request's result"
   await older
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "Existing title")
+  assert.equal(sessionManager.getSessionName(), "Build accounting import — accounting")
 })
 
 test("when the selected session changes during generation, discard the pending title", async () => {
@@ -133,10 +133,13 @@ test("when the title is manually owned, skip generation entirely", async () => {
   const sessionManager = createAccountingSession()
   await sessionManager.setSessionName("My chosen title", "user")
 
-  // Act / Assert
-  assert.equal(await retitleWithDefaultPolicy({}, { sessionManager }, {
+  // Act
+  const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, {
     generateTitle: () => assert.fail("Manual titles must not request generation"),
-  }), false)
+  })
+
+  // Assert
+  assert.equal(outcome.status, "protected")
 })
 
 test("when the generated title is unchanged, preserve title history", async () => {
@@ -154,18 +157,19 @@ test("when the generated title is unchanged, preserve title history", async () =
   assert.deepEqual(sessionManager.getEntries(), entries)
 })
 
-test("when generated output is blank, preserve the existing title", async () => {
+test("when generated output is blank, use the original request instead of a generic title", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
   await sessionManager.setSessionName("Existing title", "auto")
 
   // Act
-  await retitleWithDefaultPolicy({}, { sessionManager }, {
+  const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, {
     generateTitle: async () => " \n\t ",
   })
 
   // Assert
-  assert.equal(sessionManager.getSessionName(), "Existing title")
+  assert.equal(sessionManager.getSessionName(), "Build accounting import — accounting")
+  assert.equal(outcome.status, "fallback")
 })
 
 test("when separate sessions retitle concurrently, keep their requests independent", async () => {
@@ -188,16 +192,20 @@ test("when separate sessions retitle concurrently, keep their requests independe
   assert.equal(sessionManager.getSessionName(), "Accounting import — accounting")
 })
 
-test("when generation fails, propagate the error and allow a later retitle", async () => {
+test("when generation fails, use grounded context and allow a later model refresh", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
 
-  // Act / Assert
-  await assert.rejects(retitleWithDefaultPolicy({}, { sessionManager }, {
+  // Act
+  const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, {
     generateTitle: async () => {
-      throw new Error("Generation failed")
+      throw new Error("Worker disconnected")
     },
-  }), /Generation failed/)
+  })
+
+  // Assert
+  assert.equal(outcome.status, "fallback")
+  assert.equal(sessionManager.getSessionName(), "Build accounting import — accounting")
 
   await retitleWithDefaultPolicy({}, { sessionManager }, {
     generateTitle: async () => "Accounting import",
@@ -336,4 +344,64 @@ test("when later metadata follows a readable ticket subject, preserve the subjec
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "#251: [Bug] Preserve {province} selection — accounting")
+})
+
+test("when inference never settles, commit an excerpt at the deadline and ignore late output", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  const generation = Promise.withResolvers()
+
+  // Act
+  const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, {
+    generateTitle: () => generation.promise,
+    generationTimeoutMs: 1,
+  })
+  generation.resolve("Late model result")
+  await generation.promise
+
+  // Assert
+  assert.equal(outcome.status, "fallback")
+  assert.equal(sessionManager.getSessionName(), "Build accounting import — accounting")
+})
+
+test("when a newer request succeeds, release an older wait without waiting for its model", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  const generation = Promise.withResolvers()
+  const older = retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: () => generation.promise })
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: async () => "Reconcile imports" })
+  const outcome = await older
+
+  // Assert
+  assert.equal(outcome.status, "stale")
+  assert.equal(sessionManager.getSessionName(), "Reconcile imports — accounting")
+})
+
+test("when a model fails after a successful title, retain the accepted same-task description", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  await retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: async () => "Reconcile bank statements" })
+  const entries = sessionManager.getEntries().slice()
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: async () => null })
+
+  // Assert
+  assert.deepEqual(sessionManager.getEntries(), entries)
+})
+
+test("when a new ticket has no subject and inference fails, do not relabel the old task", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  await retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: async () => "Reconcile imports" })
+  sessionManager.appendMessage({ role: "user", content: "Now work on ACC-99", timestamp: 1 })
+
+  // Act
+  const outcome = await retitleWithDefaultPolicy({}, { sessionManager }, { generateTitle: async () => null })
+
+  // Assert
+  assert.equal(outcome.status, "unavailable")
+  assert.equal(sessionManager.getSessionName(), "Reconcile imports — accounting")
 })

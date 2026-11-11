@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { buildSessionTitleContext } from "../../src/context/session-context.js"
-import { formatSessionTitle } from "../../src/context/title-format.js"
+import { formatSessionTitle, getRequestTitleExcerpt } from "../../src/context/title-format.js"
 
 function contextFor(entries) {
   return { sessionManager: { getBranch: () => entries } }
@@ -76,3 +76,17 @@ test("when a ticket has no repository, omit the repository separator", () => {
   // Assert
   assert.equal(title, "WRAPX-123: Some Stuff")
 })
+
+for (const [name, context, expected] of [
+  ["a readable request", { originalTask: "Explain duplicate bank transactions" }, "Explain duplicate bank transactions"],
+  ["a different ticket", { reference: "ACC-99", originalTask: "Fix the original import bug" }, ""],
+  ["tracker metadata", { originalTask: '{"title":"Import failure"}' }, ""],
+  ["a bare link", { originalTask: "https://example.com/task" }, ""],
+  ["an acknowledgement", { originalTask: "Thanks!" }, ""],
+  ["an oversized request", { originalTask: "Explain why importing bank statements creates duplicate transactions and how to prevent repeated rows without losing legitimate transfers" }, "Explain why importing bank statements creates duplicate transactions and how to prevent repeated rows without losing…"],
+]) {
+  test(`when fallback context contains ${name}, retain only a grounded bounded excerpt`, () => {
+    // Act / Assert
+    assert.equal(getRequestTitleExcerpt(context), expected)
+  })
+}

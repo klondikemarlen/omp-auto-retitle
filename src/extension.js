@@ -66,9 +66,7 @@ async function handleRetitleCommand(args, extensionContext, options) {
     return
   }
 
-  const changed = await retitleSession({}, extensionContext, options, "command")
-  let message = "Session title unchanged"
-  if (changed) message = "Session title regenerated"
-
-  extensionContext.ui?.notify?.(message, "info")
+  const outcome = await retitleSession({}, extensionContext, options, "command")
+  const severity = outcome.status === "fallback" || outcome.status === "unavailable" ? "warning" : "info"
+  extensionContext.ui?.notify?.(outcome.message, severity)
 }

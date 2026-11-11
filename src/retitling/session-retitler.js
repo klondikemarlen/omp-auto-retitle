@@ -9,14 +9,19 @@ const sessionStates = new WeakMap()
 
 export async function retitleSession(event, extensionContext, options = {}, reason = "command") {
   const sessionManager = extensionContext?.sessionManager
-  if (!sessionManager || !canAutomaticallyRetitle(sessionManager)) return false
+  if (!sessionManager) return { status: "skipped", message: "No active session" }
+  if (!canAutomaticallyRetitle(sessionManager)) return { status: "protected", message: "Manual session title preserved" }
 
   const titleContext = buildSessionTitleContext(event, extensionContext)
-  if (!titleContext) return false
+  if (!titleContext) return { status: "skipped", message: "No task context available for a title" }
 
   const sessionState = getOrCreateSessionState(sessionManager)
   updateSessionContext(sessionState, sessionManager, extensionContext)
-  return generateAndCommitTitle(titleContext, extensionContext, sessionState, options, reason)
+  const outcome = await generateAndCommitTitle(titleContext, extensionContext, sessionState, options, reason)
+  if (reason !== "command" && (outcome.status === "fallback" || outcome.status === "unavailable")) {
+    extensionContext.ui?.notify?.(outcome.message, "warning")
+  }
+  return outcome
 }
 
 export async function handleCompletedAgentRun(event, extensionContext, options) {
@@ -37,7 +42,7 @@ export async function handleCompletedAgentRun(event, extensionContext, options) 
 
   const refreshReason = getAutomaticRefreshReason(sessionState, taskChanged)
   if (refreshReason) {
-    sessionState.hasGeneratedTitle = true
+    sessionState.hasGeneratedTitle = false
     sessionState.replanRequested = false
     await retitleSession(event, extensionContext, options, refreshReason)
     return
@@ -85,6 +90,7 @@ export function stopRetitleSession(sessionManager) {
   const sessionState = sessionManager && sessionStates.get(sessionManager)
   if (!sessionState) return
 
+  invalidatePendingTitleRequest(sessionManager)
   sessionState.unsubscribeFromTitleChanges?.()
   sessionStates.delete(sessionManager)
 }
@@ -119,6 +125,7 @@ function getOrCreateSessionState(sessionManager) {
     acceptedTitle: undefined,
     unsubscribeFromTitleChanges: undefined,
     lastRepairOutcome: "No repair attempt in this process",
+    lastGenerationOutcome: undefined,
   }
   sessionState.unsubscribeFromTitleChanges = observeExternalAutomaticTitles(
     sessionManager,
@@ -147,6 +154,7 @@ function resetSessionState(sessionState, sessionManager) {
   sessionState.taskIdentity = undefined
   sessionState.acceptedTitle = undefined
   sessionState.lastRepairOutcome = "No repair attempt in this session"
+  sessionState.lastGenerationOutcome = undefined
   sessionState.branchRevision += 1
 }
 

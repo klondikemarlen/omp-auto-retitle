@@ -7,6 +7,7 @@ Intelligent OMP session title management over time.
 - Generates after the first completed agent run, explicit replans, and active repository/ticket changes; also refreshes after `session_compact`.
 - Builds title context from the working-directory name, ticket/PR references, original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured title-model route.
+- Keeps a grounded title when inference is unavailable, with a 10-second wait limit and visible failure diagnostics.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
 - Adds `/retitle` for on-demand refresh and read-only `/retitle status` for loaded-version and title diagnostics.
@@ -38,16 +39,11 @@ indices such as `Image #1` or `Screenshot #2` are not ticket references.
 With the default policy, when a reference supplies an explicit `KEY: subject` or `#number: subject`, the
 plugin uses that grounded subject directly. The same ticket retains its latest
 readable subject across incidental replans, without a model call. Raw Python/JSON tracker containers are not explicit subjects; they do not replace an earlier readable subject or bypass description generation.
-Otherwise OMP generates a short description from the original request, recent
-clarifications, and compaction history. Without a ticket, it summarizes the
-actual task or question. Generated wording still depends on the configured
-title model and the details available in the session.
+Otherwise OMP generates a short description from the original request, recent clarifications, and compaction history. If generation fails, returns nothing, or takes longer than 10 seconds, the default policy retains an accepted same-task title or uses an original-request excerpt of at most 120 characters when no ticket is selected. An excerpt is not a model summary: `/retitle` and status identify it as a fallback. Bare links, structured data, and simple acknowledgements are not excerpt candidates. A ticket without a readable subject never inherits another task's description.
 
 Automatic generation runs after the first completed agent run in each session,
 after a successful `todo init` replan, when repository/ticket identity changes,
-and after compaction. Ordinary follow-ups with unchanged task identity do not
-call the title model again. A different no-ticket goal can be introduced through
-a replan or refreshed explicitly with `/retitle`.
+and after compaction. Ordinary follow-ups with an accepted title and unchanged task identity do not call the title model again. If an attempt produced neither a model title nor a grounded fallback, the next completed turn can retry; there is no background retry loop. A different no-ticket goal can be introduced through a replan or refreshed explicitly with `/retitle`.
 
 OMP can still generate its own initial/replan titles. If a native auto write replaces a current plugin title, the plugin restores its accepted title without another model call when the current session/branch/context snapshot is still safe. If conversation progress defers that immediate repair, the next same-task completed turn refreshes the snapshot and repairs the overwritten title. Task, branch, session, newer-request, and manual-ownership safeguards remain in place. No global settings are changed.
 
@@ -88,6 +84,8 @@ Since 0.12.0, `{prefix}` contains only the ticket; add `{suffix}` to include the
 
 Without `format` frontmatter, the Markdown body is a prompt for the **complete title**, and the plugin does not force a repo/ticket prefix. Exact instruction-following depends on the configured title model; use `format` when identifiers and ordering must survive small-model omissions. Custom policies generate even when a ticket supplies an explicit subject, so that optimization cannot bypass your instructions.
 
+If a custom policy cannot produce a title, the existing title stays unchanged and the command reports generation as unavailable. The plugin never substitutes a default English excerpt for your custom instructions. `/retitle status` retains the last failure or timeout outcome; `/retitle` can try again.
+
 With no override, or a blank selected override, the bundled [default policy](/prompts/default-title.md) uses ticket-first ordering and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
 
 Edits are read on the next generation. Run `/retitle` to apply them without restarting; ordinary unchanged-task follow-ups do not regenerate just because the file changed. `/retitle status` shows the prompt path and mode that the next generation will use. Treat project prompt files as trusted instructions and review them accordingly. Native OMP also recognizes `TITLE_SYSTEM.md`; the optional `format` frontmatter is a plugin feature, not a claim of native template support.
@@ -98,7 +96,7 @@ Edits are read on the next generation. Run `/retitle` to apply them without rest
 /retitle status
 ```
 
-Reports the plugin version captured when the module loaded, process ID, load time, and extension path—not a fresh read of the package version currently on disk. It also shows current title ownership, selected repository/reference, next-generation prompt source/mode, observer availability, pending work, accepted title, repair eligibility/outcome, and the three latest persisted title writes with their source/trigger. Status resolves the current prompt file but does not call a model, rename the session, or append title history.
+Reports the plugin version captured when the module loaded, process ID, load time, and extension path—not a fresh read of the package version currently on disk. It also shows current title ownership, selected repository/reference, next-generation prompt source/mode, observer availability, pending work, the last generation outcome, accepted title, repair eligibility/outcome, and the three latest persisted title writes with their source/trigger. Status resolves the current prompt file but does not call a model, rename the session, or append title history.
 
 Use the process/load identity to check whether `/restart` actually replaced the process, and the extension path to identify which installation is loaded. Recent triggers distinguish plugin writes such as `omp-auto-retitle:command` from recorded native `replan` writes; an absent trigger is reported as unknown rather than attributed to a component.
 
@@ -115,7 +113,7 @@ The implementation uses plain JavaScript ES modules grouped by responsibility un
 This extension intentionally relies on current OMP internals so it can preserve OMP's auto-title semantics:
 
 - `ctx.sessionManager.setSessionName(title, "auto", trigger)` keeps repeated plugin retitles marked as auto-generated.
-- `@oh-my-pi/pi-coding-agent/utils/title-generator` reuses OMP's existing title generation path, including the configured `providers.tinyModel` value, local/online handling, and marker-based output parsing.
+- `@oh-my-pi/pi-coding-agent/utils/title-generator` reuses OMP's configured title route, local/online handling, and output parsing. Newer compiled hosts accept an abort signal; older source versions may continue inference after the plugin stops waiting.
 - `ctx.sessionManager.onSessionNameChanged(...)` observes late native automatic title writes; its subscription is removed when the session shuts down.
 
 Those are more version-coupled than the public `pi.setSessionName(name)` action.
