@@ -7,7 +7,7 @@ Intelligent OMP session title management over time.
 - Generates after the first completed agent run, explicit replans, and active repository/ticket changes; also refreshes after `session_compact`.
 - Builds title context from the working-directory name, ticket/PR references, original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured title-model route.
-- Keeps a grounded title when inference is unavailable, with a 10-second wait limit and visible failure diagnostics.
+- Keeps a grounded title when inference is unavailable, with a 30-second wait limit and visible failure diagnostics.
 - Updates the session title with OMP's auto-title source.
 - Skips sessions that were manually named by the user.
 - Adds `/retitle` for on-demand refresh and read-only `/retitle status` for loaded-version and title diagnostics.
@@ -39,7 +39,7 @@ indices such as `Image #1` or `Screenshot #2` are not ticket references.
 With the default policy, when a reference supplies an explicit `KEY: subject` or `#number: subject`, the
 plugin uses that grounded subject directly. The same ticket retains its latest
 readable subject across incidental replans, without a model call. Raw Python/JSON tracker containers are not explicit subjects; they do not replace an earlier readable subject or bypass description generation.
-Otherwise OMP generates a short description from the original request, recent clarifications, and compaction history. If generation fails, returns nothing, or takes longer than 10 seconds, the default policy retains an accepted same-task title or uses an original-request excerpt of at most 120 characters when no ticket is selected. An excerpt is not a model summary: `/retitle` and status identify it as a fallback. Bare links, structured data, and simple acknowledgements are not excerpt candidates. A ticket without a readable subject never inherits another task's description.
+Otherwise OMP generates a short description from the original request, recent clarifications, and compaction history. If generation fails, returns nothing, or takes longer than 30 seconds, the default policy retains an accepted same-task title or uses an original-request excerpt of at most 120 characters when no ticket is selected. An excerpt is not a model summary: `/retitle` and status identify it as a fallback. Bare links, structured data, and simple acknowledgements are not excerpt candidates. A ticket without a readable subject never inherits another task's description.
 
 Automatic generation runs after the first completed agent run in each session,
 after a successful `todo init` replan, when repository/ticket identity changes,
