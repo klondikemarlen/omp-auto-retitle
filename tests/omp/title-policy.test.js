@@ -7,7 +7,7 @@ import { test } from "node:test"
 
 const titlePolicyUrl = new URL("../../src/omp/title-policy.js", import.meta.url).href
 
-function resolvePolicyInIsolatedHome(createFiles, action = "resolveTitlePolicy(ctx)") {
+function resolvePolicyInIsolatedHome(createFiles, action = "resolveTitlePolicy(ctx)", environment = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "omp-title-policy-"))
   const home = path.join(root, "home")
   const project = path.join(root, "project")
@@ -33,6 +33,9 @@ function resolvePolicyInIsolatedHome(createFiles, action = "resolveTitlePolicy(c
         OMP_PROFILE: "",
         PI_PROFILE: "",
         PI_CONFIG_DIR: ".omp",
+        PI_CODING_AGENT_DIR: "",
+        XDG_CONFIG_HOME: "",
+        ...environment,
       },
     })
     assert.equal(child.status, 0, child.stderr || child.error?.message)
@@ -125,6 +128,46 @@ test("when only a user title prompt exists, select its instructions", () => {
   // Assert
   assert.equal(result.systemPrompt, "user prompt")
   assert.equal(result.custom, true)
+})
+
+test("when a named profile is active, use its title prompt instead of the default profile", () => {
+  // Arrange
+  const createPromptFiles = ({ home }) => {
+    const defaultAgent = path.join(home, ".omp", "agent")
+    const profileAgent = path.join(home, ".omp", "profiles", "review", "agent")
+    mkdirSync(defaultAgent, { recursive: true })
+    mkdirSync(profileAgent, { recursive: true })
+    writeFileSync(path.join(defaultAgent, "TITLE_SYSTEM.md"), "default profile prompt")
+    writeFileSync(path.join(profileAgent, "TITLE_SYSTEM.md"), "review profile prompt")
+  }
+
+  // Act
+  const result = resolvePolicyInIsolatedHome(createPromptFiles, "resolveTitlePolicy(ctx)", {
+    OMP_PROFILE: "review",
+  })
+
+  // Assert
+  assert.equal(result.systemPrompt, "review profile prompt")
+})
+
+test("when the agent directory is overridden, use its title prompt instead of the default directory", () => {
+  // Arrange
+  const createPromptFiles = ({ home, project }) => {
+    const defaultAgent = path.join(home, ".omp", "agent")
+    const customAgent = path.join(project, "custom-agent")
+    mkdirSync(defaultAgent, { recursive: true })
+    mkdirSync(customAgent, { recursive: true })
+    writeFileSync(path.join(defaultAgent, "TITLE_SYSTEM.md"), "default directory prompt")
+    writeFileSync(path.join(customAgent, "TITLE_SYSTEM.md"), "custom directory prompt")
+  }
+
+  // Act
+  const result = resolvePolicyInIsolatedHome(createPromptFiles, "resolveTitlePolicy(ctx)", {
+    PI_CODING_AGENT_DIR: "./custom-agent",
+  })
+
+  // Assert
+  assert.equal(result.systemPrompt, "custom directory prompt")
 })
 
 test("when Markdown includes a format, separate the template from model instructions", () => {

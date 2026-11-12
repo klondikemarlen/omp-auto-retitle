@@ -3,7 +3,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { CONFIG_DIR_NAME, getConfigAgentDirName, getProjectDir, parseFrontmatter } from "@oh-my-pi/pi-utils"
+import { CONFIG_DIR_NAME, getAgentDir, getProjectDir, parseFrontmatter } from "@oh-my-pi/pi-utils"
 import { validateTitleFormat } from "../context/title-format.js"
 
 const BUNDLED_TITLE_POLICY_PATH = fileURLToPath(new URL("../../prompts/default-title.md", import.meta.url))
@@ -57,7 +57,7 @@ function findTitlePolicyPath(cwd) {
   const directories = [
     join(cwd, CONFIG_DIR_NAME),
     ...COMPAT_CONFIG_DIRS.map((directory) => join(cwd, directory)),
-    join(home, getConfigAgentDirName()),
+    getAgentDir(),
     ...COMPAT_CONFIG_DIRS.map((directory) => join(home, directory)),
   ]
 
