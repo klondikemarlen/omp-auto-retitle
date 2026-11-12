@@ -46,7 +46,7 @@ Model synthesis is not the only path to a usable default title. On empty output,
 
 ### Markdown policy boundary
 
-The bundled `prompts/default-title.md` is read and parsed once at module evaluation. Generation resolves `TITLE_SYSTEM.md` from the session working directory's `.omp`, `.claude`, `.codex`, then `.gemini` directories, followed by the user-level OMP agent directory and the home-level compatibility directories. OMP's native utility helpers retain its configuration-directory/profile semantics. The policy loader mirrors this small search order because `config.ts` is not exposed by the exercised compiled host; importing that source-only subpath fails native startup despite passing the source loader.
+The bundled `prompts/default-title.md` is read and parsed once at module evaluation. Generation resolves `TITLE_SYSTEM.md` from the session working directory's `.omp`, `.claude`, `.codex`, then `.gemini` directories, followed by the user-level OMP agent directory and the home-level compatibility directories. OMP's `getAgentDir()` supplies the resolved user directory, retaining configuration-directory, named-profile, and explicit agent-directory selection. The policy loader mirrors this small search order because `config.ts` is not exposed by the exercised compiled host; importing that source-only subpath fails native startup despite passing the source loader.
 
 Selected override files are read for each generation. Blank overrides select the bundled default; read/parse/format errors propagate without renaming or quietly switching policies. OMP's Markdown frontmatter parser handles YAML. A `format` string supports only `{repository}`, `{reference}`, `{description}`, `{prefix}`, and `{suffix}`; substitution is a single pass over the format, never evaluation of conversation text. Missing raw fields become empty strings and literal punctuation remains. `{prefix}` and `{suffix}` supply the complete optional ticket prefix and repository suffix.
 
@@ -75,9 +75,9 @@ The adapter intentionally uses these internal surfaces:
 - `@oh-my-pi/pi-coding-agent/utils/title-generator` for `generateSessionTitle` and its marker-based output parsing.
 - `pi.pi.settings` for active host settings; source-only and compiled generator keys can differ.
 - The session manager's source-aware setter, session/leaf identity methods, and `onSessionNameChanged` subscription.
-- `@oh-my-pi/pi-utils` for OMP configuration-directory/profile helpers and Markdown frontmatter parsing. This package root is exposed by the compiled host; the coding-agent `config.ts` subpath is not.
+- `@oh-my-pi/pi-utils` for the resolved agent directory, project directory, and Markdown frontmatter parsing. Import only helpers exercised through the compiled host: the package root does not guarantee every source export is available. In particular, use `getAgentDir()` rather than reconstructing a home-relative path with `getConfigAgentDirName`, which OMP 18.19 no longer exposes.
 
-The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.18.7` was exercised with this integration, including its optional eighth-argument abort signal; this is not a claim that every intermediate or future release is supported.
+The coding-agent package remains pinned to `16.3.11`; do not remove or update that pin merely to match the installed CLI. Development package resolution and a compiled OMP binary are distinct compatibility boundaries. OMP `18.19.0` was exercised with this integration; this is not a claim that every intermediate or future release is supported.
 
 Installer validation is a separate import boundary from direct `-e` runtime loading. The legacy extension graph loader handles collected modules as JavaScript/TypeScript, including a relative static JSON import; that import may pass direct runtime QA and fail installation. Package metadata is therefore read once through `node:fs` at module evaluation and copied into the frozen loaded-runtime snapshot. Status never rereads the file.
 
