@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2
+
+### Fixed
+
+- Restore extension loading on OMP 18.19 by using the host-resolved agent directory for title policies; preserve named profiles and honor explicit agent-directory overrides.
+
 ## 0.13.1
 
 ### Changed
