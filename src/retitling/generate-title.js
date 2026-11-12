@@ -8,7 +8,7 @@ import { getConversationLeafId, getTaskIdentity } from "./session-identity.js"
 
 // Requests can outlive a lifecycle subscription, so their ownership has its own store.
 const pendingRequests = new WeakMap()
-const GENERATION_TIMEOUT_MS = 10_000
+const GENERATION_TIMEOUT_MS = 30_000
 const NO_ANALYTICS = Object.freeze({ onUsage() {}, finish() {} })
 
 export function hasPendingTitleRequest(sessionManager) {

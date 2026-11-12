@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+### Fixed
+
+- Allow title requests up to 30 seconds instead of cancelling at ten seconds. Preserve immediate cancellation for superseded work, title ownership, and rejection of late results; no retries or model changes.
+
 ## 0.14.1
 
 ### Changed
