@@ -102,6 +102,14 @@ Use the process/load identity to check whether `/restart` actually replaced the 
 
 Releases before 0.10.0 do not implement this subcommand. If `/retitle status` only reports `Session title regenerated` or `Session title unchanged`, that process has not loaded the status-capable release. Start a new process after installing the release and check again; changing files on disk does not update extension modules already loaded in an open session.
 
+## Usage analytics
+
+Run `/retitle analytics` to inspect the last seven days of local title-generation activity across threads and OMP processes. The report separates generation requests from provider-reported attempts, including retries, and shows outcomes, triggers, latency, sessions, and token usage by model and day. It makes no model calls and does not rename the session.
+
+Usage is measured from OMP's native title callback, not estimated from prompt length. Local models and older hosts may not report tokens or model identity; missing telemetry is shown as unknown, not zero. Reported tokens and estimated cost do not reveal the percentage of an OpenAI subscription limit consumed. Success means a usable title was returned or applied, not that its wording was judged correct.
+
+Records stay under `auto-retitle/analytics/` in OMP's resolved agent directory, shared by sessions in that profile and retained until removed. Records contain timings, counters, model identifiers, and a hashed session identifier—not prompts, generated titles, repository paths, credentials, or raw provider errors. Nothing is uploaded. To clear history, stop the profile's OMP processes and remove that directory. Collection starts with this release; existing sessions must restart to load it.
+
 ## Maintainer knowledge base
 
 See the [knowledge base](/docs/README.md) for the behavioral contract, architecture

@@ -56,5 +56,5 @@ test("when a retitle argument is unknown, report usage without renaming", async 
 
   // Assert
   assert.deepEqual(sessionManager.getEntries(), entries)
-  assert.match(harness.notifications.at(-1)[0], /Usage: \/retitle \[status\]/)
+  assert.match(harness.notifications.at(-1)[0], /Usage: \/retitle \[status\|analytics\]/)
 })

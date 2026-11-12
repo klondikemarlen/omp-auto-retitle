@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+### Added
+
+- Track local, cross-session title-generation usage and expose `/retitle analytics` for request frequency, outcomes, latency, and provider-reported tokens by model and day.
+- Retain usage from billed retries and late results without storing conversation text or generated titles; explicitly report missing telemetry instead of treating it as zero.
+
 ## 0.13.2
 
 ### Fixed

@@ -1,3 +1,5 @@
+import { describeTitleAnalytics } from "./omp/title-analytics.js"
+
 import {
   getRetitleStatus,
   handleCompletedAgentRun,
@@ -43,16 +45,18 @@ function registerSessionEvents(pi, options) {
 
 function registerRetitleCommand(pi, options) {
   pi.registerCommand("retitle", {
-    description: "Regenerate the auto title, or use /retitle status for loaded version and diagnostics.",
+    description: "Regenerate the auto title, inspect status, or report local title analytics.",
     getArgumentCompletions: completeRetitleArgument,
     handler: (args, extensionContext) => handleRetitleCommand(args, extensionContext, options),
   })
 }
 
 function completeRetitleArgument(prefix) {
-  if (!"status".startsWith(prefix.trim())) return null
-
-  return [{ value: "status", label: "status — loaded version and title diagnostics" }]
+  const actions = [
+    { value: "status", label: "status — loaded version and title diagnostics" },
+    { value: "analytics", label: "analytics — local title usage over the last 7 UTC days" },
+  ].filter(({ value }) => value.startsWith(prefix.trim()))
+  return actions.length ? actions : null
 }
 
 async function handleRetitleCommand(args, extensionContext, options) {
@@ -61,8 +65,13 @@ async function handleRetitleCommand(args, extensionContext, options) {
     extensionContext.ui?.notify?.(getRetitleStatus(extensionContext, options), "info")
     return
   }
+  if (action === "analytics") {
+    const describeAnalytics = options.describeAnalytics ?? describeTitleAnalytics
+    extensionContext.ui?.notify?.(describeAnalytics(), "info")
+    return
+  }
   if (action) {
-    extensionContext.ui?.notify?.("Usage: /retitle [status]", "info")
+    extensionContext.ui?.notify?.("Usage: /retitle [status|analytics]", "info")
     return
   }
 

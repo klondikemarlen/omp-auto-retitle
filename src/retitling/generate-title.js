@@ -1,11 +1,15 @@
+import { performance } from "node:perf_hooks"
+
 import { formatSessionTitle, getRequestTitleExcerpt } from "../context/title-format.js"
-import { canAutomaticallyRetitle, generateTitleWithOmp, writeAutomaticTitle } from "../omp/omp-adapter.js"
+import { canAutomaticallyRetitle, generateTitleWithOmp, getLoadedPluginInfo, writeAutomaticTitle } from "../omp/omp-adapter.js"
 import { resolveTitlePolicy } from "../omp/title-policy.js"
+import { createTitleAnalytics } from "../omp/title-analytics.js"
 import { getConversationLeafId, getTaskIdentity } from "./session-identity.js"
 
 // Requests can outlive a lifecycle subscription, so their ownership has its own store.
 const pendingRequests = new WeakMap()
 const GENERATION_TIMEOUT_MS = 10_000
+const NO_ANALYTICS = Object.freeze({ onUsage() {}, finish() {} })
 
 export function hasPendingTitleRequest(sessionManager) {
   return pendingRequests.has(sessionManager)
@@ -23,8 +27,17 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
     sessionId: sessionManager.getSessionId?.(),
     conversationLeafId: getConversationLeafId(sessionManager),
     controller: new AbortController(),
+    startedAt: performance.now(),
+    modelRequested: false,
+    outcomeStatus: "error",
   }
   pendingRequests.set(sessionManager, request)
+  const createAnalytics = options.createAnalytics ?? (options.generateTitle ? () => NO_ANALYTICS : createTitleAnalytics)
+  request.analytics = createAnalytics({
+    sessionId: request.sessionId,
+    reason,
+    version: getLoadedPluginInfo().version,
+  })
 
   try {
     const resolvePolicy = options.resolveTitlePolicy ?? resolveTitlePolicy
@@ -71,6 +84,11 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
     recordOutcome(sessionState, sessionManager, request, "error", `Title generation failed: ${error?.message ?? String(error)}`)
     throw error
   } finally {
+    request.analytics.finish({
+      status: request.outcomeStatus,
+      modelRequested: request.modelRequested,
+      elapsedMs: performance.now() - request.startedAt,
+    })
     if (pendingRequests.get(sessionManager) === request) {
       pendingRequests.delete(sessionManager)
     }
@@ -95,7 +113,9 @@ async function requestDescription(titleContext, extensionContext, options, title
   const generation = Promise.resolve()
     .then(() => {
       signal.throwIfAborted()
-      return generateTitle(titleContext.input, extensionContext, options.pi, titlePolicy, signal)
+      request.modelRequested = true
+      return generateTitle(titleContext.input, extensionContext, options.pi, titlePolicy, signal,
+        (message) => request.analytics.onUsage(message))
     })
     .then((description) => ({ description }), (error) => ({ failure: String(error?.message ?? error) }))
 
@@ -134,6 +154,7 @@ function getRequestBlocker(sessionManager, request) {
 }
 
 function recordOutcome(sessionState, sessionManager, request, status, message) {
+  request.outcomeStatus = status
   const outcome = { status, message }
   if (pendingRequests.get(sessionManager) === request) sessionState.lastGenerationOutcome = outcome
   return outcome
