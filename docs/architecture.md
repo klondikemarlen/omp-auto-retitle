@@ -21,6 +21,7 @@ A session title should identify the durable task in session history, not the mos
 | `src/retitling/session-identity.js` | Defines task identity and the conversation leaf excluding title metadata. |
 | `src/omp/omp-adapter.js` | Bridges version-coupled host generation, source-aware persistence, native observation, and loaded-runtime identity. |
 | `src/omp/title-policy.js` | Discovers and parses Markdown policies, using pure format validation. |
+| `src/omp/title-analytics.js` | Persists content-free usage events and aggregates local cross-process reports. |
 
 Dependencies flow from extension wiring to retitling operations, then to pure context helpers and OMP integration. Pure context modules never import runtime integration. Status reads repair eligibility without owning lifecycle state; repair and generation do not call the event coordinator. Import operations from their owning module rather than re-exporting them through the extension entry point. Test-only generator/policy injection is not plugin configuration.
 
@@ -67,6 +68,12 @@ The native title listener ignores plugin writes and user-owned titles. It restor
 Blank and unchanged titles cause no write. Writes use `setSessionName(title, "auto", "omp-auto-retitle:<reason>")`, where the reason identifies first-task, task, replan, session_compact, command, native-repair, or settled-repair. OMP owns title-history persistence and manual-title protection.
 
 Bare `/retitle` distinguishes model/subject updates, unchanged titles, grounded fallback, unavailable generation, protected manual titles, missing context, and discarded stale requests. Fallback and unavailable outcomes notify at warning severity; automatic triggers also report them. `/retitle status` is read-only and includes the last generation outcome, so empty output no longer masquerades as an unchanged title. Unknown arguments report usage without generation; argument autocomplete offers `status`. The adapter captures package version, process ID, module-load time, and entry URL once at evaluation. Lifecycle diagnostics expose ownership/context, observer availability, pending work, accepted title, and repair eligibility/outcome. Three persisted writes expose exact source/trigger values; missing triggers do not establish writer identity.
+
+## Usage analytics boundary
+
+Analytics observes plugin generation requests without owning model selection or title persistence. Each request has a unique identity linking its start, final outcome, and any provider-reported attempts, including retries and usage delivered after cancellation. OMP 18.19's tenth `generateSessionTitle` argument supplies actual provider/model and token usage; pinned source and local inference may omit that callback. Unreported usage remains unknown rather than becoming a zero-token success.
+
+Append-only process-specific files under the host-resolved agent directory avoid cross-process read/modify/write races. Stored fields are explicitly selected metrics plus a hashed session identity; conversation text, title text, repository paths, credentials, and arbitrary errors do not cross this boundary. Tracking failures cannot prevent title generation. The read-only report aggregates across sessions in the profile; it does not invoke inference or claim to measure title quality or subscription quota percentages. The user guide owns retention and removal instructions.
 
 ## Compatibility and model ownership
 
