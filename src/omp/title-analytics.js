@@ -156,38 +156,57 @@ function readRequests(directory) {
   return { requests: [...requests.values()].filter((request) => request.start), issues }
 }
 
-function countLabels(values) {
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`
+}
+
+function describeTokens(attempts, field) {
+  const values = attempts.map((attempt) => attempt.usage[field]).filter(isNumber)
+  if (!values.length) return "not reported"
+  const total = values.reduce((sum, value) => sum + value, 0).toLocaleString("en-US")
+  return values.length === attempts.length ? total : `${total} reported (${values.length}/${attempts.length} calls)`
+}
+
+function describeOutcomes(requests) {
+  const labels = {
+    updated: "updated", unchanged: "unchanged", fallback: "fallback",
+    unavailable: "unavailable", stale: "superseded", error: "failed",
+    incomplete: "unfinished", unknown: "unknown",
+  }
   const counts = new Map()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([label, count]) => `${label}=${count}`).join(", ") || "none"
+  for (const request of requests) {
+    const label = labels[request.finish?.status ?? "incomplete"] ?? "unknown"
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return [...counts].map(([label, count]) => `${count} ${label}`).join(" · ")
 }
 
-function describeNumericTotals(attempts, fieldName, fields) {
-  return fields.map((field) => {
-    const values = attempts.map((attempt) => attempt[fieldName][field]).filter(isNumber)
-    const total = values.reduce((sum, value) => sum + value, 0)
-    const displayed = fieldName === "estimatedCost" ? Number(total.toPrecision(6)) : total
-    return `${field}=${values.length ? displayed : "not reported"} (${values.length}/${attempts.length} attempts)`
-  }).join(", ")
+function describeModels(attempts) {
+  const models = new Map()
+  for (const attempt of attempts) {
+    const label = `${attempt.provider} / ${attempt.model}`
+    if (!models.has(label)) models.set(label, [])
+    models.get(label).push(attempt)
+  }
+  if (!models.size) return ["Model: not reported"]
+  if (models.size === 1) return [`Model: ${models.keys().next().value}`]
+  return ["Models:", ...[...models].sort(([a], [b]) => a.localeCompare(b)).map(([label, usage]) =>
+    `  ${label}: ${countLabel(usage.length, "call")} · tokens: ${describeTokens(usage, "totalTokens")}`,
+  )]
 }
 
-function describeGroup(label, requests, attempts = requests.flatMap((request) => request.usage)) {
-  const sessions = new Set(requests.map((request) => request.start.sessionHash).filter((hash) => typeof hash === "string" && /^[\da-f]{64}$/.test(hash)))
-  const latencies = requests.map((request) => request.finish?.elapsedMs).filter(isNumber)
-  const maxLatency = Number(latencies.reduce((max, value) => Math.max(max, value), 0).toFixed(1))
-  const requested = requests.filter((request) => request.finish?.modelRequested === true)
-  const covered = requested.filter((request) => request.usage.length > 0).length
-  const pending = requests.filter((request) => !request.finish).length
-  const lines = [
-    `${label}: ${requests.length} generations; ${sessions.size} sessions; ${attempts.length} usage attempts`,
-    `  Triggers: ${countLabels(requests.map((request) => request.start.reason))}`,
-    `  Outcomes: ${countLabels(requests.map((request) => request.finish?.status ?? "incomplete"))}`,
-    `  Latency: ${latencies.length ? `mean ${(latencies.reduce((sum, value) => sum + value, 0) / latencies.length).toFixed(1)} ms; max ${maxLatency} ms` : "not reported"} (${latencies.length}/${requests.length} generations)`,
-    `  Usage coverage: ${covered}/${requested.length} completed model-requested generations; ${requested.length - covered} missing callbacks; ${pending} incomplete generations (model-request status unknown)`,
-    `  Tokens: ${describeNumericTotals(attempts, "usage", tokenFields)}`,
-    `  Estimated cost (provider-reported, not a bill): ${describeNumericTotals(attempts, "estimatedCost", costFields)}`,
-  ]
-  return lines.join("\n")
+function describeWarnings(requests, issues) {
+  const lines = []
+  const missing = requests.filter((request) => request.finish?.modelRequested && !request.usage.length).length
+  const unfinished = requests.filter((request) => !request.finish).length
+  if (missing) lines.push(`Usage unavailable for ${countLabel(missing, "completed model request")}; token totals may be incomplete.`)
+  if (unfinished) lines.push(`${countLabel(unfinished, "request")} unfinished; usage may be incomplete.`)
+  const warnings = []
+  if (issues.malformed) warnings.push(`${countLabel(issues.malformed, "invalid record")} skipped`)
+  if (issues.unreadable) warnings.push(`${countLabel(issues.unreadable, "unreadable file or directory", "unreadable files or directories")}`)
+  if (issues.orphaned) warnings.push(`${countLabel(issues.orphaned, "request")} without a start record`)
+  if (warnings.length) lines.push(`Storage warning: ${warnings.join("; ")}. Totals may be incomplete.`)
+  return lines
 }
 
 export function describeTitleAnalytics({ days = 7, directory } = {}) {
@@ -210,34 +229,26 @@ export function describeTitleAnalytics({ days = 7, directory } = {}) {
     const timestamp = Date.parse(request.start.timestamp)
     return timestamp >= start && timestamp < end
   })
-  const lines = [
-    `Auto-retitle analytics — last ${days} UTC calendar days (${new Date(start).toISOString().slice(0, 10)} through ${today})`,
-    "Local recorded data only. Requests, retries, and late usage are attributed to the request's UTC start day.",
-    describeGroup("Total", requests),
-    "By UTC day:",
-  ]
-  const dates = [...new Set(requests.map((request) => new Date(request.start.timestamp).toISOString().slice(0, 10)))].sort()
-  for (const date of dates) {
-    lines.push(describeGroup(date, requests.filter((request) => new Date(request.start.timestamp).toISOString().slice(0, 10) === date)))
+  const lines = [`Title analytics — last ${countLabel(days, "day")} (UTC)`]
+  if (!requests.length) {
+    return [...lines, "No title activity recorded in this period.", ...describeWarnings(requests, data.issues)].join("\n")
   }
-  lines.push("By actual provider/model (request outcomes and end-to-end latency repeat across retry groups):")
-  const models = new Map()
-  for (const request of requests) {
-    for (const attempt of request.usage) {
-      const key = JSON.stringify([attempt.provider, attempt.model])
-      if (!models.has(key)) models.set(key, { requests: new Set(), attempts: [] })
-      const group = models.get(key)
-      group.requests.add(request)
-      group.attempts.push(attempt)
-    }
+  const attempts = requests.flatMap((request) => request.usage)
+  const sessions = new Set(requests.map((request) => request.start.sessionHash).filter((hash) => typeof hash === "string" && /^[\da-f]{64}$/.test(hash)))
+  const latencies = requests.map((request) => request.finish?.elapsedMs).filter(isNumber)
+  lines.push(
+    `${countLabel(requests.length, "request")} across ${countLabel(sessions.size, "session")}`,
+    `Titles: ${describeOutcomes(requests)}`,
+    `Model calls: ${attempts.length} reported (including retries)`,
+    `Tokens: ${describeTokens(attempts, "totalTokens")} total · ${describeTokens(attempts, "input")} input · ${describeTokens(attempts, "output")} output`,
+  )
+  if (latencies.length) {
+    const mean = latencies.reduce((sum, value) => sum + value, 0) / latencies.length
+    const max = latencies.reduce((longest, value) => Math.max(longest, value), 0)
+    const coverage = latencies.length === requests.length ? "" : ` (${latencies.length}/${requests.length} requests)`
+    lines.push(`Time: ${(mean / 1000).toFixed(2)} s average · ${(max / 1000).toFixed(2)} s slowest${coverage}`)
   }
-  for (const [key, group] of [...models].sort(([a], [b]) => a.localeCompare(b))) {
-    const [provider, model] = JSON.parse(key)
-    lines.push(describeGroup(`${provider} / ${model}`, [...group.requests], group.attempts))
-  }
-  if (!models.size) lines.push("  No actual provider/model telemetry recorded.")
-  lines.push("Missing callbacks do not establish local execution or zero usage; older hosts may not expose telemetry. No subscription quota or synthetic quality score is inferred.")
-  const { malformed, unreadable, orphaned } = data.issues
-  lines.push(`Storage warnings: ${malformed} malformed/incomplete records skipped; ${unreadable} unreadable files/directories; ${orphaned} requests without start records (excluded).`)
+  lines.push(...describeModels(attempts), ...describeWarnings(requests, data.issues))
+  lines.push("Recorded locally. Tokens do not measure subscription quota.")
   return lines.join("\n")
 }

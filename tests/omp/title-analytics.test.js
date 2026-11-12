@@ -47,13 +47,13 @@ test("when independent processes record usage, aggregate generations and session
 
   // Assert
   assert.equal(readdirSync(directory).length, 2)
-  assert.match(report, /Total: 3 generations; 2 sessions; 2 usage attempts/)
-  assert.match(report, /Triggers: command=2, replan=1/)
-  assert.match(report, /Outcomes: unchanged=1, updated=2/)
-  assert.match(report, /mean 50\.0 ms; max 100 ms/)
-  assert.match(report, /provider \/ tiny: 2 generations; 1 sessions; 2 usage attempts/)
-  assert.match(report, /input=15 \(2\/2 attempts\)/)
-  assert.match(report, /totalTokens=20 \(2\/2 attempts\)/)
+  assert.match(report, /3 requests across 2 sessions/)
+  assert.match(report, /2 updated/)
+  assert.match(report, /1 unchanged/)
+  assert.match(report, /0\.05 s average · 0\.10 s slowest/)
+  assert.match(report, /Model: provider \/ tiny/)
+  assert.match(report, /Model calls: 2 reported/)
+  assert.match(report, /Tokens: 20 total · 15 input · 5 output/)
 })
 
 test("when retries report late usage, attribute each attempt to its finished generation", (t) => {
@@ -69,12 +69,12 @@ test("when retries report late usage, attribute each attempt to its finished gen
   const report = describeTitleAnalytics({ directory })
 
   // Assert
-  assert.match(report, /Total: 1 generations; 1 sessions; 2 usage attempts/)
-  assert.match(report, /Outcomes: stale=1/)
-  assert.match(report, /Usage coverage: 1\/1 completed model-requested generations; 0 missing callbacks/)
-  assert.match(report, /other-provider \/ retry-model: 1 generations; 1 sessions; 1 usage attempts/)
-  assert.match(report, /provider \/ first-model: 1 generations; 1 sessions; 1 usage attempts/)
-  assert.match(report, /input=30 \(2\/2 attempts\)/)
+  assert.match(report, /1 request across 1 session/)
+  assert.match(report, /1 superseded/)
+  assert.doesNotMatch(report, /Usage unavailable/)
+  assert.match(report, /other-provider \/ retry-model: 1 call/)
+  assert.match(report, /provider \/ first-model: 1 call/)
+  assert.match(report, /30 input · 4 reported \(1\/2 calls\) output/)
   assert.equal(records(directory).filter((record) => record.type === "finish").length, 1)
 })
 
@@ -92,13 +92,11 @@ test("when telemetry is partial, distinguish reported zero from absent categorie
   const report = describeTitleAnalytics({ directory })
 
   // Assert
-  assert.match(report, /input=0 \(1\/1 attempts\)/)
-  assert.match(report, /reasoningTokens=not reported \(0\/1 attempts\)/)
-  assert.match(report, /cacheRead=not reported \(0\/1 attempts\)/)
-  assert.match(report, /cacheWrite=not reported \(0\/1 attempts\)/)
-  assert.match(report, /total=0 \(1\/1 attempts\)/)
-  assert.match(report, /Usage coverage: 1\/2 completed model-requested generations; 1 missing callbacks; 1 incomplete generations/)
-  assert.match(report, /Outcomes: incomplete=1, unavailable=1, updated=1/)
+  assert.match(report, /Tokens: 0 total · 0 input · 0 output/)
+  assert.match(report, /Usage unavailable for 1 completed model request/)
+  assert.match(report, /1 request unfinished/)
+  assert.match(report, /1 unavailable/)
+  assert.match(report, /1 updated/)
 })
 
 test("when callbacks contain private fields, persist only whitelisted metadata and numeric usage", (t) => {
@@ -139,9 +137,9 @@ test("when logs contain malformed records, report incomplete coverage and retain
   const report = describeTitleAnalytics({ directory })
 
   // Assert
-  assert.match(report, /Total: 1 generations; 1 sessions; 1 usage attempts/)
-  assert.match(report, /Outcomes: incomplete=1/)
-  assert.match(report, /2 malformed\/incomplete records skipped; 0 unreadable files\/directories; 1 requests without start records/)
+  assert.match(report, /1 request across 1 session/)
+  assert.match(report, /1 unfinished/)
+  assert.match(report, /2 invalid records skipped; 1 request without a start record/)
   assert.doesNotMatch(report, /secret|999/)
 })
 
@@ -163,10 +161,9 @@ test("when usage arrives after midnight, use the request start day for attributi
   const twoDayReport = describeTitleAnalytics({ days: 2, directory })
 
   // Assert
-  assert.match(todayReport, /Total: 0 generations; 0 sessions; 0 usage attempts/)
-  assert.match(twoDayReport, /Total: 1 generations; 1 sessions; 1 usage attempts/)
-  assert.ok(twoDayReport.includes(`${yesterday}: 1 generations; 1 sessions; 1 usage attempts`))
-  assert.ok(!twoDayReport.includes(`${today}: 1 generations`))
+  assert.match(todayReport, /No title activity recorded/)
+  assert.match(twoDayReport, /1 request across 1 session/)
+  assert.match(twoDayReport, /8 input/)
 })
 
 test("when storage fails, warn without exposing errors or breaking generation consumers", (t) => {
@@ -191,7 +188,7 @@ test("when storage fails, warn without exposing errors or breaking generation co
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /could not be saved/)
   assert.doesNotMatch(warnings[0], /secret|ENOTDIR|occupied/)
-  assert.match(report, /1 unreadable files\/directories/)
+  assert.match(report, /1 unreadable file or directory/)
   assert.doesNotMatch(report, /secret|ENOTDIR|occupied/)
 })
 
@@ -203,8 +200,6 @@ test("when a store is unused, report missing telemetry without inferring zero mo
   const report = describeTitleAnalytics({ directory })
 
   // Assert
-  assert.match(report, /Total: 0 generations; 0 sessions; 0 usage attempts/)
-  assert.match(report, /No actual provider\/model telemetry recorded/)
-  assert.match(report, /Missing callbacks do not establish local execution or zero usage/)
-  assert.match(report, /totalTokens=not reported \(0\/0 attempts\)/)
+  assert.match(report, /No title activity recorded/)
+  assert.doesNotMatch(report, /Tokens: 0|Model calls: 0|Storage warning/)
 })

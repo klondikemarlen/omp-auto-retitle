@@ -104,7 +104,7 @@ Releases before 0.10.0 do not implement this subcommand. If `/retitle status` on
 
 ## Usage analytics
 
-Run `/retitle analytics` to inspect the last seven days of local title-generation activity across threads and OMP processes. The report separates generation requests from provider-reported attempts, including retries, and shows outcomes, triggers, latency, sessions, and token usage by model and day. It makes no model calls and does not rename the session.
+Run `/retitle analytics` for a short summary of the last seven UTC days across threads and OMP processes: requests and sessions, title outcomes, reported model calls, token totals, and average/slowest response time. A single model appears once; multiple models get a compact call/token comparison. Missing usage and storage warnings appear only when relevant. Detailed triggers, timestamps, cache/reasoning usage, and cost estimates remain in the local records rather than cluttering the report. The command makes no model calls and does not rename the session.
 
 Usage is measured from OMP's native title callback, not estimated from prompt length. Local models and older hosts may not report tokens or model identity; missing telemetry is shown as unknown, not zero. Reported tokens and estimated cost do not reveal the percentage of an OpenAI subscription limit consumed. Success means a usable title was returned or applied, not that its wording was judged correct.
 

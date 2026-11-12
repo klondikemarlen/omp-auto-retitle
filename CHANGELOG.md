@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1
+
+### Changed
+
+- Replace repeated analytics metric blocks with a compact, plain-language summary. Show token totals, response time, model identity, and relevant warnings without diagnostic noise; retain full local usage records.
+
 ## 0.14.0
 
 ### Added
