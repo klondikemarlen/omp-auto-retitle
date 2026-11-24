@@ -88,17 +88,13 @@ If a custom policy cannot produce a title, the existing title stays unchanged an
 
 With no override, or a blank selected override, the bundled [default policy](/prompts/default-title.md) uses ticket-first ordering and explicit-subject optimization. A format-only override uses the bundled description instructions. An unreadable selected file leaves the existing title unchanged and reports its error; it does not silently select a different file.
 
-Edits are read on the next generation. Run `/retitle` to apply them without restarting; ordinary unchanged-task follow-ups do not regenerate just because the file changed. `/retitle status` shows the prompt path and mode that the next generation will use. Treat project prompt files as trusted instructions and review them accordingly. Native OMP also recognizes `TITLE_SYSTEM.md`; the optional `format` frontmatter is a plugin feature, not a claim of native template support.
+Edits are read on the next generation. Run `/retitle` to apply them without restarting; ordinary unchanged-task follow-ups do not regenerate just because the file changed. `/retitle status details` shows the prompt path and mode that the next generation will use. Treat project prompt files as trusted instructions and review them accordingly. Native OMP also recognizes `TITLE_SYSTEM.md`; the optional `format` frontmatter is a plugin feature, not a claim of native template support.
 
-## Runtime diagnostics
+## Check the session title
 
-```text
-/retitle status
-```
+Use `/retitle status` to see your current title, whether automatic retitling can change it, and the latest recorded change. A title can survive a restart even though this process hasn't generated one yet. If a generation failed, status keeps the reason available.
 
-Reports the plugin version captured when the module loaded, process ID, load time, and extension path—not a fresh read of the package version currently on disk. It also shows current title ownership, selected repository/reference, next-generation prompt source/mode, observer availability, pending work, the last generation outcome, accepted title, repair eligibility/outcome, and the three latest persisted title writes with their source/trigger. Status resolves the current prompt file but does not call a model, rename the session, or append title history.
-
-Use the process/load identity to check whether `/restart` actually replaced the process, and the extension path to identify which installation is loaded. Recent triggers distinguish plugin writes such as `omp-retitle:command` from recorded native `replan` writes; an absent trigger is reported as unknown rather than attributed to a component.
+Use `/retitle status details` to troubleshoot. It shows the plugin version and path loaded **in this process**, the prompt selected for the next generation, observer and repair state, and the last three recorded title changes. The trigger is evidence of what was recorded, not proof of which component wrote the title. Neither view calls a model or writes a title.
 
 Releases before 0.10.0 do not implement this subcommand. If `/retitle status` only reports `Session title regenerated` or `Session title unchanged`, that process has not loaded the status-capable release. Start a new process after installing the release and check again; changing files on disk does not update extension modules already loaded in an open session.
 
