@@ -102,26 +102,251 @@ test("when telemetry is partial, distinguish reported zero from absent categorie
 test("when callbacks contain private fields, persist only whitelisted metadata and numeric usage", (t) => {
   // Arrange
   const directory = temporaryStore(t)
-  const tracker = createTitleAnalytics({ sessionId: "/secret/session/path", reason: "secret reason", version: "secret version", prompt: "secret prompt" }, { directory })
+  const tracker = createTitleAnalytics({
+    sessionId: "/secret/session/path",
+    reason: "secret reason",
+    version: "secret version",
+    prompt: "secret prompt",
+  }, {
+    directory,
+  })
 
   // Act
   tracker.onUsage({
-    ...message({ input: 1, output: 2, totalTokens: 3, premiumRequests: 4, private: "secret usage", cost: { total: 0.02, private: "secret cost" } }),
-    content: [{ text: "secret title" }], credentialId: "secret credential", responseId: "secret response",
-    providerPayload: { token: "secret token" }, errorMessage: "secret provider error",
+    ...message({
+      input: 1,
+      output: 2,
+      totalTokens: 3,
+      premiumRequests: 4,
+      private: "secret usage",
+      cost: {
+        total: 0.02,
+        private: "secret cost",
+      },
+    }),
+    content: [
+      {
+        type: "text",
+        text: "secret title",
+      },
+      {
+        type: "thinking",
+        thinking: "secret reasoning",
+      },
+    ],
+    credentialId: "secret credential",
+    responseId: "secret response",
+    providerPayload: {
+      token: "secret token",
+    },
+    errorMessage: "secret provider error",
+    stopReason: "secret stop reason",
+    stopDetails: {
+      reason: "secret stop details",
+    },
   })
-  tracker.onUsage({ role: "user", usage: { input: 999 } })
-  tracker.finish({ status: "secret error", modelRequested: true, elapsedMs: 5, error: "secret failure" })
+  tracker.onUsage({
+    role: "user",
+    usage: {
+      input: 999,
+    },
+  })
+  tracker.onNativeReason("invalid-title")
+  tracker.onNativeReason("secret native reason")
+  tracker.finish({
+    status: "secret error",
+    modelRequested: true,
+    elapsedMs: 5,
+    failureKind: "secret failure kind",
+    error: "secret failure",
+  })
   const saved = records(directory)
 
   // Assert
   assert.equal(saved.length, 3)
-  assert.doesNotMatch(JSON.stringify(saved), /secret|premiumRequests|credential|responseId|providerPayload|content/)
+  assert.doesNotMatch(JSON.stringify(saved), /secret|premiumRequests|credential|responseId|providerPayload|content|stopDetails/)
+  assert.match(tracker.requestId, /^[\da-f-]{36}$/)
+  assert.ok(saved.every((record) => record.requestId === tracker.requestId))
   assert.match(saved[0].sessionHash, /^[a-f0-9]{64}$/)
   assert.equal(saved[0].reason, "unknown")
-  assert.deepEqual(saved[1].usage, { input: 1, output: 2, totalTokens: 3 })
-  assert.deepEqual(saved[1].estimatedCost, { total: 0.02 })
+  assert.equal(saved[1].stopReason, "unknown")
+  assert.equal(saved[1].visibleText, "present")
+  assert.deepEqual(saved[1].usage, {
+    input: 1,
+    output: 2,
+    totalTokens: 3,
+  })
+  assert.deepEqual(saved[1].estimatedCost, {
+    total: 0.02,
+  })
   assert.equal(saved[2].status, "unknown")
+  assert.equal(Object.hasOwn(saved[2], "failureKind"), false)
+  assert.equal(Object.hasOwn(saved[2], "nativeReason"), false)
+})
+
+test("when several generations fail, show ordered attempts only for the latest host no-title request in the window", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const otherFailure = track(directory)
+  otherFailure.finish({
+    status: "unavailable",
+    modelRequested: true,
+    failureKind: "timeout",
+  })
+  const latest = track(directory)
+  latest.onUsage({
+    ...message({}, "first-model"),
+    stopReason: "toolUse",
+    content: [
+      {
+        type: "text",
+        text: " \n\t",
+      },
+      {
+        type: "toolCall",
+        arguments: {
+          private: "secret tool input",
+        },
+      },
+    ],
+  })
+  latest.onNativeReason("provider-response-error")
+  latest.onNativeReason("invalid-title")
+  latest.onNativeReason("secret native reason")
+  latest.finish({
+    status: "fallback",
+    modelRequested: true,
+    failureKind: "host-no-title",
+  })
+  latest.onUsage({
+    ...message({}, "retry-model", "retry-provider"),
+    stopReason: "stop",
+    content: [
+      {
+        type: "text",
+        text: "secret output",
+      },
+    ],
+  })
+  const earlier = track(directory)
+  earlier.finish({
+    status: "unavailable",
+    modelRequested: true,
+    failureKind: "host-no-title",
+  })
+
+  const today = new Date().toISOString().slice(0, 10)
+  const timestamps = new Map([
+    [earlier.requestId, `${today}T00:00:00.000Z`],
+    [latest.requestId, `${today}T00:00:01.000Z`],
+    [otherFailure.requestId, `${today}T00:00:02.000Z`],
+  ])
+  const file = join(directory, readdirSync(directory)[0])
+  const saved = records(directory)
+  for (const record of saved) {
+    if (record.type === "start") record.timestamp = timestamps.get(record.requestId)
+  }
+  writeFileSync(file, saved.map((record) => JSON.stringify(record)).join("\n") + "\n")
+
+  // Act
+  const report = describeTitleAnalytics({
+    days: 1,
+    directory,
+  })
+
+  // Assert
+  const diagnosticsStart = report.indexOf("Latest host no-title request:")
+  assert.notEqual(diagnosticsStart, -1)
+  assert.deepEqual(report.slice(diagnosticsStart).split("\n"), [
+    `Latest host no-title request: ${today}T00:00:01.000Z · ${latest.requestId}`,
+    "  Attempt 1: provider / first-model · stop reason: toolUse · visible text: absent",
+    "  Attempt 2: retry-provider / retry-model · stop reason: stop · visible text: present",
+    "  Native rejection reason: invalid-title.",
+    "Recorded locally. Tokens do not measure subscription quota.",
+  ])
+  assert.doesNotMatch(report, /secret/)
+})
+
+test("when disk records omit or forge diagnostic fields, report unknown without exposing their contents", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const tracker = track(directory)
+  tracker.onUsage(message({}, "legacy-model"))
+  tracker.onUsage(message({}, "tampered-model"))
+  tracker.finish({
+    status: "unavailable",
+    modelRequested: true,
+    failureKind: "host-no-title",
+  })
+  const file = join(directory, readdirSync(directory)[0])
+  const saved = records(directory)
+  delete saved[1].stopReason
+  delete saved[1].visibleText
+  saved[2].stopReason = "secret provider detail"
+  saved[2].visibleText = "secret generated title"
+  saved[3].nativeReason = "secret validation error"
+  writeFileSync(file, saved.map((record) => JSON.stringify(record)).join("\n") + "\n")
+
+  // Act
+  const report = describeTitleAnalytics({
+    directory,
+  })
+
+  // Assert
+  assert.match(report, /Attempt 1: provider \/ legacy-model · stop reason: unknown · visible text: unknown/)
+  assert.match(report, /Attempt 2: provider \/ tampered-model · stop reason: unknown · visible text: unknown/)
+  assert.match(report, /Native rejection reason: not reported\./)
+  assert.doesNotMatch(report, /secret|Storage warning/)
+})
+
+test("when no usage callback arrived for the host failure, say that no attempts were reported", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const tracker = track(directory)
+  tracker.onNativeReason("secret native reason")
+  tracker.finish({
+    status: "unavailable",
+    modelRequested: true,
+    failureKind: "host-no-title",
+  })
+
+  // Act
+  const report = describeTitleAnalytics({
+    directory,
+  })
+
+  // Assert
+  assert.match(report, /Latest host no-title request: .* · /)
+  assert.match(report, /Attempts: none reported\./)
+  assert.match(report, /Native rejection reason: not reported\./)
+})
+
+test("when a host failure has many callbacks, bound its diagnostics without dropping usage", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const tracker = track(directory)
+  for (let index = 0; index < 11; index++) {
+    tracker.onUsage(message({
+      totalTokens: 2,
+    }))
+  }
+  tracker.finish({
+    status: "unavailable",
+    modelRequested: true,
+    failureKind: "host-no-title",
+  })
+
+  // Act
+  const report = describeTitleAnalytics({
+    directory,
+  })
+
+  // Assert
+  assert.match(report, /Attempt 10: provider \/ tiny/)
+  assert.doesNotMatch(report, /Attempt 11:/)
+  assert.match(report, /1 additional attempt not shown\./)
+  assert.match(report, /Model calls: 11 reported/)
+  assert.match(report, /Tokens: 22 total/)
 })
 
 test("when logs contain malformed records, report incomplete coverage and retain valid data", (t) => {
@@ -147,8 +372,15 @@ test("when usage arrives after midnight, use the request start day for attributi
   // Arrange
   const directory = temporaryStore(t)
   const tracker = track(directory)
-  tracker.finish({ status: "stale", modelRequested: true, elapsedMs: 10 })
-  tracker.onUsage(message({ input: 8 }))
+  tracker.finish({
+    status: "unavailable",
+    modelRequested: true,
+    elapsedMs: 10,
+    failureKind: "host-no-title",
+  })
+  tracker.onUsage(message({
+    input: 8,
+  }))
   const file = join(directory, readdirSync(directory)[0])
   const saved = records(directory)
   const today = new Date().toISOString().slice(0, 10)
@@ -157,13 +389,21 @@ test("when usage arrives after midnight, use the request start day for attributi
   writeFileSync(file, saved.map((record) => JSON.stringify(record)).join("\n") + "\n")
 
   // Act
-  const todayReport = describeTitleAnalytics({ days: 1, directory })
-  const twoDayReport = describeTitleAnalytics({ days: 2, directory })
+  const todayReport = describeTitleAnalytics({
+    days: 1,
+    directory,
+  })
+  const twoDayReport = describeTitleAnalytics({
+    days: 2,
+    directory,
+  })
 
   // Assert
   assert.match(todayReport, /No title activity recorded/)
+  assert.doesNotMatch(todayReport, /Latest host no-title request:/)
   assert.match(twoDayReport, /1 request across 1 session/)
   assert.match(twoDayReport, /8 input/)
+  assert.match(twoDayReport, /Latest host no-title request:/)
 })
 
 test("when storage fails, warn without exposing errors or breaking generation consumers", (t) => {
@@ -201,5 +441,6 @@ test("when a store is unused, report missing telemetry without inferring zero mo
 
   // Assert
   assert.match(report, /No title activity recorded/)
+  assert.match(report, /Host no-title diagnostics: no matching request recorded in this period\./)
   assert.doesNotMatch(report, /Tokens: 0|Model calls: 0|Storage warning/)
 })
