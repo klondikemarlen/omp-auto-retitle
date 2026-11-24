@@ -12,7 +12,7 @@ const LOADED_PLUGIN_INFO = Object.freeze({
 })
 
 const AUTO_TITLE_SOURCE = "auto"
-const PLUGIN_TRIGGER_PREFIX = "omp-auto-retitle:"
+const PLUGIN_TRIGGER_PREFIX = "omp-retitle:"
 
 export function getLoadedPluginInfo() {
   return LOADED_PLUGIN_INFO

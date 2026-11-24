@@ -1,6 +1,6 @@
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager"
 
-import registerAutoRetitleExtension from "../../src/extension.js"
+import registerRetitleExtension from "../../src/extension.js"
 import { retitleSession } from "../../src/retitling/session-retitler.js"
 
 export function createAccountingSession() {
@@ -42,7 +42,7 @@ export function createExtensionHarness(generateTitle, resolveTitlePolicy = getDe
       commands.set(name, command)
     },
   }
-  registerAutoRetitleExtension(pi, { generateTitle, resolveTitlePolicy })
+  registerRetitleExtension(pi, { generateTitle, resolveTitlePolicy })
 
   return {
     handlers,

@@ -1,5 +1,5 @@
-import registerAutoRetitleExtension from "./src/extension.js"
+import registerRetitleExtension from "./src/extension.js"
 
-export default function autoRetitleExtension(pi) {
-  registerAutoRetitleExtension(pi)
+export default function retitleExtension(pi) {
+  registerRetitleExtension(pi)
 }

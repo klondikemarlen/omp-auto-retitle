@@ -131,7 +131,7 @@ test("when conversation progress defers an auto overwrite, repair at the same-ta
   // Assert
   assert.equal(sessionManager.getSessionName(), "Accounting task 1 — accounting")
   assert.equal(generations, 1)
-  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:settled-repair")
+  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-retitle:settled-repair")
 })
 
 test("when deferred repair is followed by a ticket change, commit the new task instead", async () => {
@@ -148,5 +148,5 @@ test("when deferred repair is followed by a ticket change, commit the new task i
 
   // Assert
   assert.equal(sessionManager.getSessionName(), "ACC-43: Fix transaction matching — accounting")
-  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-auto-retitle:task")
+  assert.equal(sessionManager.getEntries().at(-1).trigger, "omp-retitle:task")
 })

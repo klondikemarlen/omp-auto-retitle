@@ -29,14 +29,14 @@ test("when a ticket reference is beyond prose limits, preserve it with its descr
 test("when feedback mentions an image after the real issue, keep the issue reference", () => {
   // Arrange
   const ctx = contextFor([
-    userMessage("Improve https://github.com/acme/omp-auto-retitle/issues/8\n[Image #1] observe this title before/after"),
+    userMessage("Improve https://github.com/acme/omp-retitle/issues/8\n[Image #1] observe this title before/after"),
   ])
 
   // Act
   const context = buildSessionTitleContext({}, ctx)
 
   // Assert
-  assert.equal(context.reference, "acme/omp-auto-retitle #8")
+  assert.equal(context.reference, "acme/omp-retitle #8")
 })
 
 test("when feedback contains only an image label, do not treat its index as a ticket", () => {

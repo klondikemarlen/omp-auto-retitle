@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 
-import registerAutoRetitleExtension from "../../src/extension.js"
+import registerRetitleExtension from "../../src/extension.js"
 import { createTitleAnalytics, describeTitleAnalytics } from "../../src/omp/title-analytics.js"
 import { createAccountingSession, getDefaultTitlePolicy, retitleWithDefaultPolicy } from "../support/retitle-harness.js"
 
@@ -184,7 +184,7 @@ test("when manual ownership or unchanged turns block retitling, create no extra 
   const analytics = createAnalyticsFixture(t)
   const handlers = new Map()
   const commands = new Map()
-  registerAutoRetitleExtension({
+  registerRetitleExtension({
     setLabel() {},
     on: (name, callback) => handlers.set(name, callback),
     registerCommand: (name, command) => commands.set(name, command),
@@ -213,7 +213,7 @@ test("when analytics is requested, report locally without inference or title per
   const analytics = createAnalyticsFixture(t)
   let command
   const notifications = []
-  registerAutoRetitleExtension({
+  registerRetitleExtension({
     setLabel() {},
     on() {},
     registerCommand: (_name, value) => { command = value },
