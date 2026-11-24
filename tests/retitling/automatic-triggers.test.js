@@ -74,8 +74,8 @@ test("when compaction or the command requests retitling, use the corresponding t
 
   // Assert
   const titleChanges = sessionManager.getEntries().filter((entry) => entry.type === "title_change")
-  assert.equal(titleChanges[0].trigger, "omp-auto-retitle:session_compact")
-  assert.equal(titleChanges[1].trigger, "omp-auto-retitle:command")
+  assert.equal(titleChanges[0].trigger, "omp-retitle:session_compact")
+  assert.equal(titleChanges[1].trigger, "omp-retitle:command")
   assert.equal(generations, 2)
 })
 

@@ -19,7 +19,7 @@ export function describeRetitleStatus(extensionContext, sessionState, options) {
 function describeLoadedExtension() {
   const runtime = getLoadedPluginInfo()
   return [
-    `Auto Retitle ${runtime.version} (loaded in this process)`,
+    `omp-retitle ${runtime.version} (loaded in this process)`,
     `Process: ${runtime.pid}; module loaded: ${runtime.loadedAt}`,
     `Extension: ${runtime.entry}`,
   ]

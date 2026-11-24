@@ -11,9 +11,9 @@ import {
   stopRetitleSession,
 } from "./retitling/session-retitler.js"
 
-export default function registerAutoRetitleExtension(pi, options = {}) {
+export default function registerRetitleExtension(pi, options = {}) {
   const retitleOptions = { ...options, pi }
-  pi.setLabel("Auto Retitle")
+  pi.setLabel("omp-retitle")
   registerSessionEvents(pi, retitleOptions)
   registerRetitleCommand(pi, retitleOptions)
 }

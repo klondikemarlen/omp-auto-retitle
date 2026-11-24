@@ -1,6 +1,6 @@
 {
-  "name": "omp-auto-retitle",
-  "version": "0.14.3",
+  "name": "omp-retitle",
+  "version": "0.15.0",
   "description": "Intelligent OMP session title management over time.",
   "type": "module",
   "license": "MIT",
@@ -8,15 +8,15 @@
     "test": "bun test",
     "lint": "eslint . --max-warnings 0",
     "release:check": "npm run lint && npm test",
-    "reinstall": "omp plugin install github:klondikemarlen/omp-auto-retitle"
+    "reinstall": "omp plugin install github:klondikemarlen/omp-retitle"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/klondikemarlen/omp-auto-retitle.git"
+    "url": "git+https://github.com/klondikemarlen/omp-retitle.git"
   },
-  "homepage": "https://github.com/klondikemarlen/omp-auto-retitle#readme",
+  "homepage": "https://github.com/klondikemarlen/omp-retitle#readme",
   "bugs": {
-    "url": "https://github.com/klondikemarlen/omp-auto-retitle/issues"
+    "url": "https://github.com/klondikemarlen/omp-retitle/issues"
   },
   "qna": false,
   "keywords": [

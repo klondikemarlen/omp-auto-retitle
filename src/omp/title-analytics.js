@@ -51,7 +51,7 @@ export function createTitleAnalytics({ sessionId, reason, version }, options = {
     } catch {
       if (!warned) {
         warned = true
-        console.warn("Auto-retitle analytics could not be saved; local usage reporting may be incomplete.")
+        console.warn("omp-retitle analytics could not be saved; local usage reporting may be incomplete.")
       }
     }
   }
@@ -211,19 +211,19 @@ function describeWarnings(requests, issues) {
 
 export function describeTitleAnalytics({ days = 7, directory } = {}) {
   if (!Number.isInteger(days) || days < 1) {
-    return "Auto-retitle analytics: days must be a positive integer."
+    return "omp-retitle analytics: days must be a positive integer."
   }
   let data
   try {
     data = readRequests(directory ?? defaultDirectory())
   } catch {
-    return "Auto-retitle analytics unavailable: local storage could not be read."
+    return "omp-retitle analytics unavailable: local storage could not be read."
   }
   const today = new Date().toISOString().slice(0, 10)
   const end = Date.parse(today) + dayMs
   const start = end - days * dayMs
   if (!Number.isFinite(new Date(start).getTime())) {
-    return "Auto-retitle analytics: requested UTC date range is out of bounds."
+    return "omp-retitle analytics: requested UTC date range is out of bounds."
   }
   const requests = data.requests.filter((request) => {
     const timestamp = Date.parse(request.start.timestamp)

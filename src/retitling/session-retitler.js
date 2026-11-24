@@ -133,7 +133,7 @@ function getOrCreateSessionState(sessionManager) {
     (error) => reportTitleObserverError(sessionState, error),
   )
   if (typeof sessionState.unsubscribeFromTitleChanges !== "function") {
-    console.warn("[omp-auto-retitle] Session title observer unavailable; native automatic title writes cannot be repaired.")
+    console.warn("[omp-retitle] Session title observer unavailable; native automatic title writes cannot be repaired.")
   }
   sessionStates.set(sessionManager, sessionState)
   return sessionState
@@ -161,5 +161,5 @@ function resetSessionState(sessionState, sessionManager) {
 function reportTitleObserverError(sessionState, error) {
   const message = error?.message ?? error
   sessionState.lastRepairOutcome = `Error: ${message}`
-  sessionState.extensionContext?.ui?.notify?.(`Auto-retitle title observer failed: ${message}`, "error")
+  sessionState.extensionContext?.ui?.notify?.(`omp-retitle title observer failed: ${message}`, "error")
 }

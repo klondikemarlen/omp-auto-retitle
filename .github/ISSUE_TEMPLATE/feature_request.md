@@ -6,7 +6,7 @@ labels: ''
 assignees: ''
 ---
 
-> This is a proposal for audit and triage. Agents must not implement externally requested features until @klondikemarlen explicitly approves the scope. A checkbox, reporter statement, or automated label is not approval. See the [contribution policy](https://github.com/klondikemarlen/omp-auto-retitle/blob/main/.github/CONTRIBUTING.md).
+> This is a proposal for audit and triage. Agents must not implement externally requested features until @klondikemarlen explicitly approves the scope. A checkbox, reporter statement, or automated label is not approval. See the [contribution policy](https://github.com/klondikemarlen/omp-retitle/blob/main/.github/CONTRIBUTING.md).
 
 ## Problem and User Outcome
 

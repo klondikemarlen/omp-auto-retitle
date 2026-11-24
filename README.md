@@ -1,4 +1,4 @@
-# omp-auto-retitle
+# omp-retitle
 
 Intelligent OMP session title management over time.
 
@@ -98,7 +98,7 @@ Edits are read on the next generation. Run `/retitle` to apply them without rest
 
 Reports the plugin version captured when the module loaded, process ID, load time, and extension path—not a fresh read of the package version currently on disk. It also shows current title ownership, selected repository/reference, next-generation prompt source/mode, observer availability, pending work, the last generation outcome, accepted title, repair eligibility/outcome, and the three latest persisted title writes with their source/trigger. Status resolves the current prompt file but does not call a model, rename the session, or append title history.
 
-Use the process/load identity to check whether `/restart` actually replaced the process, and the extension path to identify which installation is loaded. Recent triggers distinguish plugin writes such as `omp-auto-retitle:command` from recorded native `replan` writes; an absent trigger is reported as unknown rather than attributed to a component.
+Use the process/load identity to check whether `/restart` actually replaced the process, and the extension path to identify which installation is loaded. Recent triggers distinguish plugin writes such as `omp-retitle:command` from recorded native `replan` writes; an absent trigger is reported as unknown rather than attributed to a component.
 
 Releases before 0.10.0 do not implement this subcommand. If `/retitle status` only reports `Session title regenerated` or `Session title unchanged`, that process has not loaded the status-capable release. Start a new process after installing the release and check again; changing files on disk does not update extension modules already loaded in an open session.
 
@@ -128,9 +128,13 @@ Those are more version-coupled than the public `pi.setSessionName(name)` action.
 
 ## Install from GitHub
 
+Upgrading from `omp-auto-retitle`? Run `omp plugin uninstall omp-auto-retitle` first so only one plugin registers `/retitle`. Existing titles and analytics do not need migration.
+
 ```sh
-omp plugin install github:klondikemarlen/omp-auto-retitle
+omp plugin install github:klondikemarlen/omp-retitle
 ```
+
+Start a new OMP process and run `/retitle status` to confirm `omp-retitle` is loaded.
 
 ## Local title generation
 
