@@ -83,7 +83,13 @@ This repository's distribution source is GitHub, not npm. Keep implementation/QA
    ```
 
    `reinstall` installs `github:klondikemarlen/omp-retitle` from the default branch. Do not use the old GitHub URL as a rollback target; it redirects to that same branch.
-5. Verify the new version in `~/.omp/plugins/node_modules/omp-retitle/package.json` and `~/.omp/plugins/omp-plugins.lock.json`, and check the resolved commit in the dependency lock. After the rename, confirm the old package is absent. If installation fails, remove any partially installed new package and restore the recorded revision with `omp plugin install "github:klondikemarlen/omp-retitle#$previous_commit" --force`, where `previous_commit` is the full SHA recorded in step 4. Verify the restored package name and version and report the failed upgrade.
+5. Verify the new version in `~/.omp/plugins/node_modules/omp-retitle/package.json` and `~/.omp/plugins/omp-plugins.lock.json`, and check the resolved commit in the dependency lock. After the rename, confirm the old package is absent. If installation fails, remove any partially installed new package. In the following command, replace `FULL_SHA_FROM_STEP_4` with the recorded 40-character commit SHA before running it:
+
+   ```sh
+   omp plugin install 'github:klondikemarlen/omp-retitle#FULL_SHA_FROM_STEP_4' --force
+   ```
+
+   Verify the restored package name and version and report the failed upgrade.
 6. Start a **new OMP process** and repeat autocomplete and command behavior against the installed artifact. Existing processes retain extension modules loaded at startup; a disk update or reload claim is not installed-runtime proof. Observe manual-title preservation too.
 7. Record release/install evidence in the PR. Return the checkout to synchronized `main` and remove only the merged agent-owned topic branch. Retain user-owned worktrees and branches.
 
