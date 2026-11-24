@@ -84,6 +84,25 @@ test("when a retitle argument is unknown, report usage without renaming", async 
   assert.match(unknownStatusArgument, /\busage: \/retitle\b.*\bdetails\b/i)
 })
 
+test("when the title prompt cannot load, keep the failing path in details", async () => {
+  // Arrange
+  const harness = createExtensionHarness(undefined, () => {
+    throw new Error("Invalid format in /private/project/.omp/TITLE_SYSTEM.md")
+  })
+  const ctx = harness.createContext(createAccountingSession())
+  const command = harness.commands.get("retitle")
+
+  // Act
+  await command.handler("status", ctx)
+  await command.handler("status details", ctx)
+
+  // Assert
+  const [[overview], [details]] = harness.notifications
+  assert.match(overview, /prompt unavailable/i)
+  assert.doesNotMatch(overview, /\/private\/project/)
+  assert.match(details, /Invalid format in \/private\/project\/\.omp\/TITLE_SYSTEM\.md/)
+})
+
 test("when completing retitle arguments, offer status details after the status argument", () => {
   // Arrange
   const harness = createExtensionHarness()

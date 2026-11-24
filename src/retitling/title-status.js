@@ -174,6 +174,7 @@ function describeNextTitlePolicy(extensionContext, options) {
     const mode = describeTitlePolicyMode(titlePolicy)
     return `Title prompt (next generation): ${titlePolicy.path}; mode: ${mode}`
   } catch (error) {
+    if (options.statusDetails !== true) return "Title prompt unavailable; see details."
     return `Title prompt (next generation): unavailable — ${error?.message ?? error}`
   }
 }
