@@ -52,10 +52,32 @@ function registerRetitleCommand(pi, options) {
 }
 
 function completeRetitleArgument(prefix) {
+  const argumentPrefix = prefix.trimStart()
+
+  // OMP replaces the entire argument prefix, including the first word.
+  if (argumentPrefix.startsWith("status ") && "status details".startsWith(argumentPrefix)) {
+    return [
+      {
+        value: "status details",
+        label: "status details — full title diagnostics",
+      },
+    ]
+  }
+
   const actions = [
-    { value: "status", label: "status — loaded version and title diagnostics" },
-    { value: "analytics", label: "analytics — local title usage over the last 7 UTC days" },
-  ].filter(({ value }) => value.startsWith(prefix.trim()))
+    {
+      value: "",
+      label: "<nothing> — regenerate the title",
+    },
+    {
+      value: "status",
+      label: "status — title overview (add details for diagnostics)",
+    },
+    {
+      value: "analytics",
+      label: "analytics — local title usage over the last 7 UTC days",
+    },
+  ].filter(({ value }) => value.startsWith(argumentPrefix))
   return actions.length ? actions : null
 }
 
@@ -65,13 +87,20 @@ async function handleRetitleCommand(args, extensionContext, options) {
     extensionContext.ui?.notify?.(getRetitleStatus(extensionContext, options), "info")
     return
   }
+  if (action === "status details") {
+    extensionContext.ui?.notify?.(getRetitleStatus(extensionContext, {
+      ...options,
+      statusDetails: true,
+    }), "info")
+    return
+  }
   if (action === "analytics") {
     const describeAnalytics = options.describeAnalytics ?? describeTitleAnalytics
     extensionContext.ui?.notify?.(describeAnalytics(), "info")
     return
   }
   if (action) {
-    extensionContext.ui?.notify?.("Usage: /retitle [status|analytics]", "info")
+    extensionContext.ui?.notify?.("Usage: /retitle [status [details] | analytics]", "info")
     return
   }
 

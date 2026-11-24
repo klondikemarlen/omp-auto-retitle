@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+
+### Changed
+
+- `/retitle status` now leads with the session title, who controls it, and the latest recorded change. Use `/retitle status details` for process information, prompt configuration, repair diagnostics, and title history. Both commands are read-only.
+
 ## 0.16.0
 
 ### Added
