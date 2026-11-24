@@ -1,4 +1,4 @@
-import { getMessageText, getRecentUniqueText, normalizeContextText } from "./context-text.js"
+import { getMessageText, getRecentUniqueText, normalizeContextText, withoutFileCitations } from "./context-text.js"
 
 const MAX_USER_CONTEXT_LENGTH = 120
 const MAX_WORK_EVIDENCE = 3
@@ -15,7 +15,7 @@ export function selectWorkEvidence(entries) {
     const text = workEvidenceText(entry)
     if (!text) continue
 
-    const lines = text.split(/\r?\n/)
+    const lines = withoutFileCitations(text).split(/\r?\n/)
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index].trim()
       const reference = findWorkReference(line)
