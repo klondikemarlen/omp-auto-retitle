@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+
+### Changed
+
+- Renamed the GitHub repository and plugin from `omp-auto-retitle` to `omp-retitle`. Uninstall the former package before installing the new one. `/retitle`, manual title ownership, and existing usage records are unchanged.
+
 ## 0.14.3
 
 ### Fixed

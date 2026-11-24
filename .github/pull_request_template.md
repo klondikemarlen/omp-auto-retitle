@@ -8,7 +8,7 @@
 
 ## Maintainer Approval
 
-<!-- For an externally requested feature, link the explicit scope approval authored by @klondikemarlen, or identify the direct maintainer instruction authorizing this work. If absent, state 'Not approved; review only'. A self-checked box, issue classification, or bot-applied label is not authorization. See https://github.com/klondikemarlen/omp-auto-retitle/blob/main/.github/CONTRIBUTING.md. -->
+<!-- For an externally requested feature, link the explicit scope approval authored by @klondikemarlen, or identify the direct maintainer instruction authorizing this work. If absent, state 'Not approved; review only'. A self-checked box, issue classification, or bot-applied label is not authorization. See https://github.com/klondikemarlen/omp-retitle/blob/main/.github/CONTRIBUTING.md. -->
 
 ## Implementation
 

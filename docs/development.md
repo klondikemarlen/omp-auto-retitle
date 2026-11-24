@@ -69,12 +69,12 @@ This repository's distribution source is GitHub, not npm. Keep implementation/QA
 4. Uninstall the old package, then install the merged remote source:
 
    ```sh
-   omp plugin uninstall omp-auto-retitle
+   omp plugin uninstall omp-retitle
    npm run reinstall
    ```
 
-   `reinstall` runs `omp plugin install github:klondikemarlen/omp-auto-retitle` and follows the default branch. An exact full-commit reference with `--force` is for stale-cache diagnosis, not routine installation.
-5. Verify the intended version in both `~/.omp/plugins/node_modules/omp-auto-retitle/package.json` and the package entry of `~/.omp/plugins/omp-plugins.lock.json`. Verify the lock's resolved commit when present. If install fails, restore the previous remote artifact and report the failure; do not leave the user without the plugin.
+   `reinstall` runs `omp plugin install github:klondikemarlen/omp-retitle` and follows the default branch. An exact full-commit reference with `--force` is for stale-cache diagnosis, not routine installation.
+5. Verify the intended version in both `~/.omp/plugins/node_modules/omp-retitle/package.json` and the package entry of `~/.omp/plugins/omp-plugins.lock.json`. Verify the lock's resolved commit when present. If install fails, restore the previous remote artifact and report the failure; do not leave the user without the plugin.
 6. Start a **new OMP process** and repeat autocomplete and command behavior against the installed artifact. Existing processes retain extension modules loaded at startup; a disk update or reload claim is not installed-runtime proof. Observe manual-title preservation too.
 7. Record release/install evidence in the PR. Return the checkout to synchronized `main` and remove only the merged agent-owned topic branch. Retain user-owned worktrees and branches.
 
