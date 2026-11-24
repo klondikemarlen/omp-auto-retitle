@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.3
+
+### Fixed
+
+- Keep Markdown file-and-line citations from displacing the task in default session titles. A citation-only review finding no longer replaces an earlier readable ticket subject.
+
 ## 0.14.2
 
 ### Fixed
