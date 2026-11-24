@@ -4,11 +4,18 @@ import { join } from "node:path"
 
 import { getAgentDir } from "@oh-my-pi/pi-utils"
 
+import { isNativeTitleReason } from "./native-title-reason.js"
+
 const processLogName = `requests-${process.pid}-${randomUUID()}.jsonl`
 const tokenFields = ["input", "output", "cacheRead", "cacheWrite", "totalTokens", "reasoningTokens"]
 const costFields = ["input", "output", "cacheRead", "cacheWrite", "total"]
 const reasons = new Set(["first-task", "task", "replan", "session_compact", "command"])
 const outcomes = new Set(["updated", "unchanged", "fallback", "unavailable", "stale", "error"])
+const stopReasons = new Set(["stop", "length", "toolUse", "error", "aborted"])
+const visibleTextShapes = new Set(["present", "absent", "unknown"])
+const nonTextBlockTypes = new Set(["thinking", "redactedThinking", "fallback", "toolCall"])
+const failureKinds = new Set(["host-no-title", "generator-error", "timeout", "citation-only"])
+const maxDiagnosticAttempts = 10
 const dayMs = 86_400_000
 
 function defaultDirectory() {
@@ -36,8 +43,27 @@ function modelLabel(value) {
   return value
 }
 
+function classifyVisibleText(content) {
+  if (!Array.isArray(content)) {
+    return "unknown"
+  }
+
+  let shape = "absent"
+  for (const block of content) {
+    if (block?.type === "text" && typeof block.text === "string") {
+      if (/\S/.test(block.text)) {
+        return "present"
+      }
+    } else if (!nonTextBlockTypes.has(block?.type)) {
+      shape = "unknown"
+    }
+  }
+  return shape
+}
+
 export function createTitleAnalytics({ sessionId, reason, version }, options = {}) {
   const requestId = randomUUID()
+  let nativeReason
   let finished = false
   let warned = false
 
@@ -64,6 +90,7 @@ export function createTitleAnalytics({ sessionId, reason, version }, options = {
   append(start)
 
   return {
+    requestId,
     onUsage(message) {
       if (message?.role !== "assistant") return
       const usage = numericFields(message.usage, tokenFields)
@@ -72,17 +99,26 @@ export function createTitleAnalytics({ sessionId, reason, version }, options = {
         type: "usage",
         provider: modelLabel(message.provider),
         model: modelLabel(message.model),
+        stopReason: stopReasons.has(message.stopReason) ? message.stopReason : "unknown",
+        visibleText: classifyVisibleText(message.content),
         usage,
         ...(Object.keys(estimatedCost).length ? { estimatedCost } : {}),
       })
     },
-    finish({ status, modelRequested, elapsedMs }) {
+    onNativeReason(reason) {
+      if (!finished && isNativeTitleReason(reason)) {
+        nativeReason = reason
+      }
+    },
+    finish({ status, modelRequested, elapsedMs, failureKind }) {
       if (finished) return
       finished = true
       append({
         type: "finish",
         status: outcomes.has(status) ? status : "unknown",
         modelRequested: modelRequested === true,
+        ...(failureKinds.has(failureKind) ? { failureKind } : {}),
+        ...(failureKind === "host-no-title" && nativeReason ? { nativeReason } : {}),
         ...(isNumber(elapsedMs) ? { elapsedMs } : {}),
       })
     },
@@ -144,6 +180,8 @@ function readRequests(directory) {
         request.usage.push({
           provider: modelLabel(record.provider),
           model: modelLabel(record.model),
+          stopReason: stopReasons.has(record.stopReason) ? record.stopReason : "unknown",
+          visibleText: visibleTextShapes.has(record.visibleText) ? record.visibleText : "unknown",
           usage: numericFields(record.usage, tokenFields),
           estimatedCost: numericFields(record.estimatedCost, costFields),
         })
@@ -209,6 +247,49 @@ function describeWarnings(requests, issues) {
   return lines
 }
 
+function describeHostNoTitle(requests) {
+  let latest
+  let latestTimestamp = -Infinity
+  for (const request of requests) {
+    if (request.finish?.failureKind !== "host-no-title") continue
+
+    const timestamp = Date.parse(request.start.timestamp)
+    if (timestamp >= latestTimestamp) {
+      latest = request
+      latestTimestamp = timestamp
+    }
+  }
+  if (!latest) {
+    return ["Host no-title diagnostics: no matching request recorded in this period."]
+  }
+
+  const timestamp = new Date(latestTimestamp).toISOString()
+  const lines = [`Latest host no-title request: ${timestamp} · ${latest.start.requestId}`]
+  if (!latest.usage.length) {
+    lines.push("  Attempts: none reported.")
+  }
+
+  const shown = Math.min(latest.usage.length, maxDiagnosticAttempts)
+  for (let index = 0; index < shown; index++) {
+    const attempt = latest.usage[index]
+    lines.push(
+      `  Attempt ${index + 1}: ${attempt.provider} / ${attempt.model} · stop reason: ${attempt.stopReason} · visible text: ${attempt.visibleText}`,
+    )
+  }
+  const omitted = latest.usage.length - shown
+  if (omitted) {
+    lines.push(`  ${countLabel(omitted, "additional attempt")} not shown.`)
+  }
+
+  const nativeReason = latest.finish.nativeReason
+  if (isNativeTitleReason(nativeReason)) {
+    lines.push(`  Native rejection reason: ${nativeReason}.`)
+  } else {
+    lines.push("  Native rejection reason: not reported.")
+  }
+  return lines
+}
+
 export function describeTitleAnalytics({ days = 7, directory } = {}) {
   if (!Number.isInteger(days) || days < 1) {
     return "omp-retitle analytics: days must be a positive integer."
@@ -231,7 +312,12 @@ export function describeTitleAnalytics({ days = 7, directory } = {}) {
   })
   const lines = [`Title analytics — last ${countLabel(days, "day")} (UTC)`]
   if (!requests.length) {
-    return [...lines, "No title activity recorded in this period.", ...describeWarnings(requests, data.issues)].join("\n")
+    lines.push(
+      "No title activity recorded in this period.",
+      ...describeHostNoTitle(requests),
+      ...describeWarnings(requests, data.issues),
+    )
+    return lines.join("\n")
   }
   const attempts = requests.flatMap((request) => request.usage)
   const sessions = new Set(requests.map((request) => request.start.sessionHash).filter((hash) => typeof hash === "string" && /^[\da-f]{64}$/.test(hash)))
@@ -248,7 +334,11 @@ export function describeTitleAnalytics({ days = 7, directory } = {}) {
     const coverage = latencies.length === requests.length ? "" : ` (${latencies.length}/${requests.length} requests)`
     lines.push(`Time: ${(mean / 1000).toFixed(2)} s average · ${(max / 1000).toFixed(2)} s slowest${coverage}`)
   }
-  lines.push(...describeModels(attempts), ...describeWarnings(requests, data.issues))
+  lines.push(
+    ...describeModels(attempts),
+    ...describeWarnings(requests, data.issues),
+    ...describeHostNoTitle(requests),
+  )
   lines.push("Recorded locally. Tokens do not measure subscription quota.")
   return lines.join("\n")
 }

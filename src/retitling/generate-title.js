@@ -50,11 +50,13 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
       const generated = await requestDescription(titleContext, extensionContext, options, titlePolicy, request)
       description = generated.description
       failure = generated.failure
+      request.failureKind = generated.failureKind
       source = "model"
-      if (!titlePolicy.custom && typeof description === "string" && description.trim()) {
+      if (!titlePolicy.custom && description) {
         description = withoutFileCitations(description).trim()
         if (!description) {
           failure = "OMP returned only a file citation"
+          request.failureKind = "citation-only"
         }
       }
     }
@@ -64,7 +66,7 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
 
     let title = formatSessionTitle(description, titleContext, titlePolicy.format)
     if (!title) {
-      failure ??= "OMP returned no usable title; its worker, provider, or output validation may be unavailable"
+      failure ??= "Title formatting produced no usable title"
       const fallback = selectFallbackTitle(titleContext, titlePolicy, sessionState, request)
       title = fallback.title
       source = fallback.source
@@ -94,6 +96,7 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
     request.analytics.finish({
       status: request.outcomeStatus,
       modelRequested: request.modelRequested,
+      failureKind: request.outcomeStatus === "stale" ? undefined : request.failureKind,
       elapsedMs: performance.now() - request.startedAt,
     })
     if (pendingRequests.get(sessionManager) === request) {
@@ -106,12 +109,19 @@ async function requestDescription(titleContext, extensionContext, options, title
   const generateTitle = options.generateTitle ?? generateTitleWithOmp
   const signal = request.controller.signal
   const interrupted = Promise.withResolvers()
-  const onAbort = () => interrupted.resolve({ failure: String(signal.reason?.message ?? signal.reason) })
+  let timedOut = false
+  const onAbort = () => interrupted.resolve({
+    failure: String(signal.reason?.message ?? signal.reason),
+    failureKind: timedOut ? "timeout" : undefined,
+  })
   signal.addEventListener("abort", onAbort, { once: true })
   if (signal.aborted) onAbort()
 
   const timer = setTimeout(
-    () => request.controller.abort(new Error("Title generation timed out")),
+    () => {
+      timedOut = true
+      request.controller.abort(new Error("Title generation timed out"))
+    },
     options.generationTimeoutMs ?? GENERATION_TIMEOUT_MS,
   )
 
@@ -121,10 +131,31 @@ async function requestDescription(titleContext, extensionContext, options, title
     .then(() => {
       signal.throwIfAborted()
       request.modelRequested = true
-      return generateTitle(titleContext.input, extensionContext, options.pi, titlePolicy, signal,
-        (message) => request.analytics.onUsage(message))
+      return generateTitle(
+        titleContext.input,
+        extensionContext,
+        options.pi,
+        titlePolicy,
+        signal,
+        (message) => request.analytics.onUsage(message),
+        (reason) => request.analytics.onNativeReason?.(reason),
+      )
     })
-    .then((description) => ({ description }), (error) => ({ failure: String(error?.message ?? error) }))
+    .then((description) => {
+      if (typeof description === "string" && description.trim()) {
+        return { description }
+      }
+
+      const requestId = request.analytics.requestId
+      const correlation = requestId ? ` (request ${requestId})` : ""
+      return {
+        failure: `OMP returned no usable title; its worker, provider, or output validation may be unavailable; see /retitle analytics${correlation}`,
+        failureKind: "host-no-title",
+      }
+    }, (error) => ({
+      failure: String(error?.message ?? error),
+      failureKind: "generator-error",
+    }))
 
   try {
     return await Promise.race([generation, interrupted.promise])

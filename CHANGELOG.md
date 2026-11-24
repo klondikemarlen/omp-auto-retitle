@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+### Added
+
+- When OMP returns no usable title, correlate the warning with local `/retitle analytics`. The report distinguishes OMP’s last reported reason from each attempt’s stop reason and whether it returned visible text, without storing the prompt, model output, or raw error.
+
 ## 0.15.0
 
 ### Changed

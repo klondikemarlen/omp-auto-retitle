@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs"
 
 import { generateSessionTitle } from "@oh-my-pi/pi-coding-agent/utils/title-generator"
+import { logger } from "@oh-my-pi/pi-utils"
+
+import { observeNativeTitleReason } from "./native-title-reason.js"
 
 const packageMetadata = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"))
 
@@ -68,13 +71,13 @@ function isExternalAutomaticTitle(change) {
   return typeof change.trigger !== "string" || !change.trigger.startsWith(PLUGIN_TRIGGER_PREFIX)
 }
 
-export async function generateTitleWithOmp(input, ctx, pi, titlePolicy, signal, onUsage) {
+export async function generateTitleWithOmp(input, ctx, pi, titlePolicy, signal, onUsage, onNativeReason) {
   const settings = pi?.pi?.settings
   if (!settings) {
     throw new Error("OMP title settings are unavailable in this runtime")
   }
 
-  return generateSessionTitle(
+  return observeNativeTitleReason(logger, signal, onNativeReason, () => generateSessionTitle(
     input,
     ctx.modelRegistry,
     settings,
@@ -85,5 +88,5 @@ export async function generateTitleWithOmp(input, ctx, pi, titlePolicy, signal, 
     signal,
     undefined,
     onUsage,
-  )
+  ))
 }

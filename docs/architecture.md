@@ -75,6 +75,8 @@ Bare `/retitle` distinguishes model/subject updates, unchanged titles, grounded 
 
 Analytics observes plugin generation requests without owning model selection or title persistence. Each request has a unique identity linking its start, final outcome, and any provider-reported attempts, including retries and usage delivered after cancellation. OMP 18.19's tenth `generateSessionTitle` argument supplies actual provider/model and token usage; pinned source and local inference may omit that callback. Unreported usage remains unknown rather than becoming a zero-token success.
 
+Attempt callbacks precede native output validation. Record their allowlisted stop reason and visible-text presence separately from the plugin’s generation failure category. Where the host exposes structured log sinks, observe only native title-generator reason codes in the async invocation of this request; matching by session or wall-clock time would mix overlapping requests. The sink is removed on completion or cancellation. Neither raw events nor the host’s global logging configuration are retained or changed.
+
 Append-only process-specific files under the host-resolved agent directory avoid cross-process read/modify/write races. Stored fields are explicitly selected metrics plus a hashed session identity; conversation text, title text, repository paths, credentials, and arbitrary errors do not cross this boundary. Tracking failures cannot prevent title generation. The read-only report aggregates across sessions in the profile; it does not invoke inference or claim to measure title quality or subscription quota percentages. The user guide owns retention and removal instructions.
 
 ## Compatibility and model ownership
