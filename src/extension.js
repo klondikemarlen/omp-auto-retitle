@@ -66,6 +66,10 @@ function completeRetitleArgument(prefix) {
 
   const actions = [
     {
+      value: "",
+      label: "<nothing> — regenerate the title",
+    },
+    {
       value: "status",
       label: "status — title overview (add details for diagnostics)",
     },

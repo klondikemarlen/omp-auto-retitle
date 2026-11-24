@@ -94,6 +94,8 @@ Edits are read on the next generation. Run `/retitle` to apply them without rest
 
 Use `/retitle status` to see your current title, whether automatic retitling can change it, and the latest recorded change. A title can survive a restart even though this process hasn't generated one yet. If a generation failed, status keeps the reason available.
 
+To refresh instead, choose `<nothing> — regenerate the title` at the top of OMP’s `/retitle ` menu. The label inserts no argument; submit `/retitle` as usual.
+
 Use `/retitle status details` to troubleshoot. It shows the plugin version and path loaded **in this process**, the prompt selected for the next generation, observer and repair state, and the last three recorded title changes. The trigger is evidence of what was recorded, not proof of which component wrote the title. Neither view calls a model or writes a title.
 
 Releases before 0.10.0 do not implement this subcommand. If `/retitle status` only reports `Session title regenerated` or `Session title unchanged`, that process has not loaded the status-capable release. Start a new process after installing the release and check again; changing files on disk does not update extension modules already loaded in an open session.

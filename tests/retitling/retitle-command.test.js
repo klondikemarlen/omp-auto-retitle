@@ -110,12 +110,14 @@ test("when completing retitle arguments, offer status details after the status a
 
   // Act
   const topLevel = complete("")
+  const partialStatus = complete("sta")
   const afterStatus = complete("status ")
   const partialDetail = complete("status det")
   const unsupported = complete("status extra")
 
   // Assert
-  assert.deepEqual(topLevel.map(({ value }) => value), ["status", "analytics"])
+  assert.deepEqual(topLevel.map(({ value }) => value), ["", "status", "analytics"])
+  assert.deepEqual(partialStatus.map(({ value }) => value), ["status"])
   assert.deepEqual(afterStatus.map(({ value }) => value), ["status details"])
   assert.deepEqual(partialDetail.map(({ value }) => value), ["status details"])
   assert.equal(unsupported, null)
