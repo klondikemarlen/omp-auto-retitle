@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks"
 
+import { withoutFileCitations } from "../context/context-text.js"
 import { formatSessionTitle, getRequestTitleExcerpt } from "../context/title-format.js"
 import { canAutomaticallyRetitle, generateTitleWithOmp, getLoadedPluginInfo, writeAutomaticTitle } from "../omp/omp-adapter.js"
 import { resolveTitlePolicy } from "../omp/title-policy.js"
@@ -50,6 +51,12 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
       description = generated.description
       failure = generated.failure
       source = "model"
+      if (!titlePolicy.custom && typeof description === "string" && description.trim()) {
+        description = withoutFileCitations(description).trim()
+        if (!description) {
+          failure = "OMP returned only a file citation"
+        }
+      }
     }
 
     const blocker = getRequestBlocker(sessionManager, request)

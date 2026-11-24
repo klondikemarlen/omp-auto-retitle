@@ -1,5 +1,15 @@
 const MAX_USER_CONTEXT_LENGTH = 120
 
+// A linked file and line range locates review evidence; its label is not a task.
+const FILE_LINE_LINK = /\[`?[^[\]\n`]+:\d+(?:[-–]\d+)?`?\]\([^\s)]*\)?/g
+
+export function withoutFileCitations(text) {
+  const prose = text.replace(FILE_LINE_LINK, " ")
+  if (prose !== text && !/[\p{L}\p{N}]/u.test(prose)) return ""
+
+  return prose
+}
+
 export function getRecentUniqueText(values, limit) {
   const seen = new Set()
   const result = []
@@ -34,5 +44,5 @@ export function getMessageText(message) {
 export function normalizeContextText(value, limit = MAX_USER_CONTEXT_LENGTH) {
   if (typeof value !== "string") return ""
 
-  return value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, limit)
+  return withoutFileCitations(value).replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, limit)
 }

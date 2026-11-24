@@ -20,6 +20,51 @@ test("when a title is generated, persist its normalized auto-owned value", async
   assert.equal(sessionManager.titleSource, "auto")
 })
 
+test("when a review cites a file after naming the task, keep the task as the session title", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "#871: Review counted workflow step completions",
+    timestamp: 1,
+  })
+  sessionManager.appendMessage({
+    role: "assistant",
+    content: "#871: [`reject-service.test.ts:26–31`](https://github.com/example/accounting/blob/main/reject-service.test.ts#L26-L31)",
+    timestamp: 2,
+  })
+  const context = {
+    sessionManager,
+  }
+
+  // Act
+  await retitleWithDefaultPolicy({}, context)
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#871: Review counted workflow step completions — accounting")
+})
+
+test("when the generated review description includes a source citation, persist its task prose", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "Review #871 for duplicate workflow completions",
+    timestamp: 1,
+  })
+  const context = {
+    sessionManager,
+  }
+
+  // Act
+  await retitleWithDefaultPolicy({}, context, {
+    generateTitle: async () => "Review duplicate completions [steps.ts:26](https://github.com/example/accounting/blob/main/steps.ts#L26)",
+  })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#871: Review duplicate completions — accounting")
+})
+
 test("when generations complete out of order, keep the latest request's title", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
