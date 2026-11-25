@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0
+
+### Added
+
+- Agents and scripts can run `omp-retitle-analytics` to read the same profile-local report as `/retitle analytics` on standard output, without starting an OMP session.
+
 ## 0.17.0
 
 ### Changed
