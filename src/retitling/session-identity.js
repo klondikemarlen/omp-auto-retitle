@@ -1,3 +1,9 @@
+const passiveEntryTypes = new Set([
+  "title_change",
+  "model_usage",
+  "custom",
+])
+
 export function getTaskIdentity(titleContext) {
   return JSON.stringify([
     titleContext.repository,
@@ -10,7 +16,7 @@ export function getConversationLeafId(sessionManager) {
   const branch = sessionManager.getBranch?.()
   if (!branch) return sessionManager.getLeafId?.()
 
-  // A title-history entry changes the raw leaf without advancing the conversation.
-  const latestConversationEntry = branch.findLast((entry) => entry.type !== "title_change")
+  // Skip known audit and state records; other entries may change context.
+  const latestConversationEntry = branch.findLast((entry) => !passiveEntryTypes.has(entry.type))
   return latestConversationEntry?.id ?? null
 }

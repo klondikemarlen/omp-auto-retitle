@@ -11,6 +11,14 @@ const tokenFields = ["input", "output", "cacheRead", "cacheWrite", "totalTokens"
 const costFields = ["input", "output", "cacheRead", "cacheWrite", "total"]
 const reasons = new Set(["first-task", "task", "replan", "session_compact", "command"])
 const outcomes = new Set(["updated", "unchanged", "fallback", "unavailable", "stale", "error"])
+const staleReasons = new Set([
+  "newer-request",
+  "branch-changed",
+  "session-changed",
+  "session-shutdown",
+  "conversation-advanced",
+  "manual-title",
+])
 const stopReasons = new Set(["stop", "length", "toolUse", "error", "aborted"])
 const visibleTextShapes = new Set(["present", "absent", "unknown"])
 const nonTextBlockTypes = new Set(["thinking", "redactedThinking", "fallback", "toolCall"])
@@ -110,17 +118,21 @@ export function createTitleAnalytics({ sessionId, reason, version }, options = {
         nativeReason = reason
       }
     },
-    finish({ status, modelRequested, elapsedMs, failureKind }) {
+    finish({ status, modelRequested, elapsedMs, failureKind, staleReason }) {
       if (finished) return
       finished = true
-      append({
+      const record = {
         type: "finish",
         status: outcomes.has(status) ? status : "unknown",
         modelRequested: modelRequested === true,
         ...(failureKinds.has(failureKind) ? { failureKind } : {}),
         ...(failureKind === "host-no-title" && nativeReason ? { nativeReason } : {}),
         ...(isNumber(elapsedMs) ? { elapsedMs } : {}),
-      })
+      }
+      if (status === "stale" && staleReasons.has(staleReason)) {
+        record.staleReason = staleReason
+      }
+      append(record)
     },
   }
 }
@@ -217,6 +229,23 @@ function describeOutcomes(requests) {
     counts.set(label, (counts.get(label) ?? 0) + 1)
   }
   return [...counts].map(([label, count]) => `${count} ${label}`).join(" · ")
+}
+
+function describeSupersededGuards(requests) {
+  const counts = new Map()
+  for (const { finish } of requests) {
+    if (finish?.status !== "stale") continue
+
+    const { staleReason } = finish
+    const guard = staleReasons.has(staleReason) ? staleReason : "not recorded"
+    counts.set(guard, (counts.get(guard) ?? 0) + 1)
+  }
+  if (!counts.size) {
+    return []
+  }
+
+  const summary = [...counts].map(([guard, count]) => `${count} ${guard}`).join(" · ")
+  return [`Superseded guards: ${summary}`]
 }
 
 function describeModels(attempts) {
@@ -325,6 +354,7 @@ export function describeTitleAnalytics({ days = 7, directory } = {}) {
   lines.push(
     `${countLabel(requests.length, "request")} across ${countLabel(sessions.size, "session")}`,
     `Titles: ${describeOutcomes(requests)}`,
+    ...describeSupersededGuards(requests),
     `Model calls: ${attempts.length} reported (including retries)`,
     `Tokens: ${describeTokens(attempts, "totalTokens")} total · ${describeTokens(attempts, "input")} input · ${describeTokens(attempts, "output")} output`,
   )

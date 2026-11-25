@@ -17,11 +17,23 @@ export async function retitleSession(event, extensionContext, options = {}, reas
 
   const sessionState = getOrCreateSessionState(sessionManager)
   updateSessionContext(sessionState, sessionManager, extensionContext)
-  const outcome = await generateAndCommitTitle(titleContext, extensionContext, sessionState, options, reason)
-  if (reason !== "command" && (outcome.status === "fallback" || outcome.status === "unavailable")) {
-    extensionContext.ui?.notify?.(outcome.message, "warning")
-  }
-  return outcome
+  const taskIdentity = getTaskIdentity(titleContext)
+  return generateSessionTitle(titleContext, taskIdentity, extensionContext, sessionState, options, reason)
+}
+
+export async function handleSessionCompaction(event, extensionContext, options) {
+  const sessionManager = extensionContext?.sessionManager
+  if (!sessionManager || !canAutomaticallyRetitle(sessionManager)) return
+
+  const titleContext = buildSessionTitleContext(event, extensionContext)
+  if (!titleContext) return
+
+  const sessionState = getOrCreateSessionState(sessionManager)
+  updateSessionContext(sessionState, sessionManager, extensionContext)
+  const taskIdentity = getTaskIdentity(titleContext)
+  if (taskIdentity === sessionState.taskIdentity) return
+
+  return generateSessionTitle(titleContext, taskIdentity, extensionContext, sessionState, options, "session_compact")
 }
 
 export async function handleCompletedAgentRun(event, extensionContext, options) {
@@ -44,7 +56,9 @@ export async function handleCompletedAgentRun(event, extensionContext, options) 
   if (refreshReason) {
     sessionState.hasGeneratedTitle = false
     sessionState.replanRequested = false
-    await retitleSession(event, extensionContext, options, refreshReason)
+    if (canAutomaticallyRetitle(sessionManager)) {
+      await generateSessionTitle(titleContext, taskIdentity, extensionContext, sessionState, options, refreshReason)
+    }
     return
   }
 
@@ -70,7 +84,7 @@ export function resetBranchRetitling(sessionManager) {
   const sessionState = getOrCreateSessionState(sessionManager)
   if (!sessionState) return
 
-  invalidatePendingTitleRequest(sessionManager)
+  invalidatePendingTitleRequest(sessionManager, "branch-changed")
   sessionState.hasGeneratedTitle = false
   sessionState.taskIdentity = undefined
   sessionState.acceptedTitle = undefined
@@ -82,7 +96,7 @@ export function resetSessionRetitling(sessionManager) {
   const sessionState = getOrCreateSessionState(sessionManager)
   if (!sessionState) return
 
-  invalidatePendingTitleRequest(sessionManager)
+  invalidatePendingTitleRequest(sessionManager, "session-changed")
   resetSessionState(sessionState, sessionManager)
 }
 
@@ -90,7 +104,7 @@ export function stopRetitleSession(sessionManager) {
   const sessionState = sessionManager && sessionStates.get(sessionManager)
   if (!sessionState) return
 
-  invalidatePendingTitleRequest(sessionManager)
+  invalidatePendingTitleRequest(sessionManager, "session-shutdown")
   sessionState.unsubscribeFromTitleChanges?.()
   sessionStates.delete(sessionManager)
 }
@@ -99,6 +113,20 @@ export function getRetitleStatus(extensionContext, options) {
   const sessionManager = extensionContext?.sessionManager
   const sessionState = sessionManager && sessionStates.get(sessionManager)
   return describeRetitleStatus(extensionContext, sessionState, options)
+}
+
+async function generateSessionTitle(titleContext, taskIdentity, extensionContext, sessionState, options, reason) {
+  // An in-flight request establishes an identity, but only acceptance satisfies first-task generation.
+  if (sessionState.taskIdentity !== taskIdentity) {
+    sessionState.taskIdentity = taskIdentity
+    sessionState.hasGeneratedTitle = false
+  }
+
+  const outcome = await generateAndCommitTitle(titleContext, extensionContext, sessionState, options, reason)
+  if (reason !== "command" && (outcome.status === "fallback" || outcome.status === "unavailable")) {
+    extensionContext.ui?.notify?.(outcome.message, "warning")
+  }
+  return outcome
 }
 
 function getAutomaticRefreshReason(sessionState, taskChanged) {

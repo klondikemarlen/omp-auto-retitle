@@ -113,9 +113,11 @@ test("when the selected session changes during generation, discard the pending t
   // Act
   await sessionManager.newSession()
   generation.resolve("Previous session title")
-  await pending
+  const outcome = await pending
 
   // Assert
+  assert.equal(outcome.status, "stale")
+  assert.match(outcome.message, /session changed/)
   assert.equal(sessionManager.getSessionName(), undefined)
 })
 
@@ -138,22 +140,51 @@ test("when the selected branch changes during generation, discard the pending ti
   assert.equal(sessionManager.getSessionName(), undefined)
 })
 
-test("when a message advances the selected branch during generation, discard the pending title", async () => {
-  // Arrange
-  const sessionManager = createAccountingSession()
-  const generation = Promise.withResolvers()
-  const pending = retitleWithDefaultPolicy({}, { sessionManager }, {
-    generateTitle: () => generation.promise,
+const conversationChanges = {
+  message: (sessionManager) => sessionManager.appendMessage({
+    role: "user",
+    content: "Switch to a recipe blog",
+    timestamp: 1,
+  }),
+  custom_message: (sessionManager) => sessionManager.appendCustomMessageEntry("task-hint", "Research invoice imports", false),
+  compaction: (sessionManager) => sessionManager.appendCompaction("Discussed invoice imports", undefined, sessionManager.getLeafId(), 100),
+  branch_summary: (sessionManager) => sessionManager.branchWithSummary(sessionManager.getLeafId(), "Discussed recipe blogs"),
+  "unknown entry": (sessionManager) => {
+    const getBranch = sessionManager.getBranch.bind(sessionManager)
+    const futureEntry = {
+      type: "future_entry",
+      id: "future-entry",
+      parentId: sessionManager.getLeafId(),
+    }
+    sessionManager.getBranch = () => [...getBranch(), futureEntry]
+  },
+}
+
+for (const [entryType, advanceConversation] of Object.entries(conversationChanges)) {
+  test(`when the selected branch advances via ${entryType}, discard the pending title`, async () => {
+    // Arrange
+    const sessionManager = createAccountingSession()
+    const started = Promise.withResolvers()
+    const generation = Promise.withResolvers()
+    const pending = retitleWithDefaultPolicy({}, { sessionManager }, {
+      generateTitle: () => {
+        started.resolve()
+        return generation.promise
+      },
+    })
+    await started.promise
+
+    // Act
+    advanceConversation(sessionManager)
+    generation.resolve("Accounting import")
+    const outcome = await pending
+
+    // Assert
+    assert.equal(outcome.status, "stale")
+    assert.match(outcome.message, /conversation advanced/)
+    assert.equal(sessionManager.getSessionName(), undefined)
   })
-
-  // Act
-  sessionManager.appendMessage({ role: "user", content: "Switch to a recipe blog", timestamp: 1 })
-  generation.resolve("Accounting import")
-  await pending
-
-  // Assert
-  assert.equal(sessionManager.getSessionName(), undefined)
-})
+}
 
 test("when a manual rename happens during generation, preserve user ownership", async () => {
   // Arrange
@@ -263,20 +294,38 @@ test("when generation fails, use grounded context and allow a later model refres
   assert.equal(sessionManager.getSessionName(), "Accounting import — accounting")
 })
 
-test("when only title history changes during generation, keep the request fresh", async () => {
+test("when bookkeeping appends advance the raw leaf during generation, keep the request fresh", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
+  const started = Promise.withResolvers()
   const generation = Promise.withResolvers()
   const pending = retitleWithDefaultPolicy({}, { sessionManager }, {
-    generateTitle: () => generation.promise,
+    generateTitle: () => {
+      started.resolve()
+      return generation.promise
+    },
   })
+  await started.promise
 
   // Act
   await sessionManager.setSessionName("Native interim title", "auto", "omp-native-auto-title")
+  sessionManager.appendCustomEntry("extension-state", {
+    progress: "recorded",
+  })
+
+  // model_usage is persisted by the compiled host, not the pinned test API.
+  const getBranch = sessionManager.getBranch.bind(sessionManager)
+  const usageEntry = {
+    type: "model_usage",
+    id: "recorded-model-usage",
+    parentId: sessionManager.getLeafId(),
+  }
+  sessionManager.getBranch = () => [...getBranch(), usageEntry]
   generation.resolve("Accounting import")
-  await pending
+  const outcome = await pending
 
   // Assert
+  assert.equal(outcome.status, "updated")
   assert.equal(sessionManager.getSessionName(), "Accounting import — accounting")
   assert.equal(sessionManager.getEntries().filter((entry) => entry.type === "title_change").length, 2)
 })
@@ -302,10 +351,12 @@ test("when an older title write finishes late, preserve the newer repair cache",
 
   // Act
   persisted.resolve()
-  await older
+  const outcome = await older
   await sessionManager.setSessionName("Native generic title", "auto", "replan")
 
   // Assert
+  assert.equal(outcome.status, "stale")
+  assert.match(outcome.message, /not cached:.*newer request/)
   assert.equal(sessionManager.getSessionName(), "Latest task — accounting")
 })
 

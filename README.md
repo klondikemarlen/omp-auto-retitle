@@ -4,7 +4,7 @@ Intelligent OMP session title management over time.
 
 ## What it does
 
-- Generates after the first completed agent run, explicit replans, and active repository/ticket changes; also refreshes after `session_compact`.
+- Generates after the first completed agent run, explicit replans, and active repository/ticket changes.
 - Builds title context from the working-directory name, ticket/PR references, original user request, recent user context, and compaction history.
 - Uses OMP's existing session-title generator and configured title-model route.
 - Keeps a grounded title when inference is unavailable, with a 30-second wait limit and visible failure diagnostics.
@@ -41,9 +41,7 @@ plugin uses that grounded subject directly. The same ticket retains its latest
 readable subject across incidental replans, without a model call. Raw Python/JSON tracker containers are not explicit subjects; they do not replace an earlier readable subject or bypass description generation.
 Otherwise OMP generates a short description from the original request, recent clarifications, and compaction history. If generation fails, returns nothing, or takes longer than 30 seconds, the default policy retains an accepted same-task title or uses an original-request excerpt of at most 120 characters when no ticket is selected. An excerpt is not a model summary: `/retitle` and status identify it as a fallback. Bare links, structured data, and simple acknowledgements are not excerpt candidates. A ticket without a readable subject never inherits another task's description.
 
-Automatic generation runs after the first completed agent run in each session,
-after a successful `todo init` replan, when repository/ticket identity changes,
-and after compaction. Ordinary follow-ups with an accepted title and unchanged task identity do not call the title model again. If an attempt produced neither a model title nor a grounded fallback, the next completed turn can retry; there is no background retry loop. A different no-ticket goal can be introduced through a replan or refreshed explicitly with `/retitle`.
+Automatic generation follows the first completed agent run, a successful `todo init` replan, or a change of task. Compaction behavior depends on the [installed version](/CHANGELOG.md). Ordinary follow-ups with an accepted title and unchanged task identity do not call the title model again. If an attempt produced neither a model title nor a grounded fallback, the next completed turn can retry; there is no background retry loop. A different no-ticket goal can be introduced through a replan or refreshed explicitly with `/retitle`.
 
 OMP can still generate its own initial/replan titles. If a native auto write replaces a current plugin title, the plugin restores its accepted title without another model call when the current session/branch/context snapshot is still safe. If conversation progress defers that immediate repair, the next same-task completed turn refreshes the snapshot and repairs the overwritten title. Task, branch, session, newer-request, and manual-ownership safeguards remain in place. No global settings are changed.
 

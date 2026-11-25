@@ -3,6 +3,7 @@ import { describeTitleAnalytics } from "./omp/title-analytics.js"
 import {
   getRetitleStatus,
   handleCompletedAgentRun,
+  handleSessionCompaction,
   requestReplanRefresh,
   resetBranchRetitling,
   resetSessionRetitling,
@@ -24,7 +25,7 @@ function registerSessionEvents(pi, options) {
   })
   pi.on("tool_result", requestReplanRefresh)
   pi.on("session_compact", (event, extensionContext) => {
-    return retitleSession(event, extensionContext, options, "session_compact")
+    return handleSessionCompaction(event, extensionContext, options)
   })
   pi.on("session_branch", (_event, extensionContext) => {
     resetBranchRetitling(extensionContext?.sessionManager)

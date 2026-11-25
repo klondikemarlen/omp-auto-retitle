@@ -78,6 +78,85 @@ test("when retries report late usage, attribute each attempt to its finished gen
   assert.equal(records(directory).filter((record) => record.type === "finish").length, 1)
 })
 
+test("when title requests are superseded, round-trip supported guard reasons and count repeated guards", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const guardReasons = [
+    "newer-request",
+    "branch-changed",
+    "session-changed",
+    "session-shutdown",
+    "conversation-advanced",
+    "manual-title",
+    "newer-request",
+  ]
+
+  // Act
+  for (const staleReason of guardReasons) {
+    track(directory).finish({
+      status: "stale",
+      modelRequested: false,
+      staleReason,
+    })
+  }
+  track(directory).finish({
+    status: "stale",
+    modelRequested: false,
+    staleReason: "private title text",
+  })
+  track(directory).finish({
+    status: "updated",
+    modelRequested: false,
+    staleReason: "manual-title",
+  })
+  const finishes = records(directory).filter((record) => record.type === "finish")
+  const report = describeTitleAnalytics({
+    directory,
+  })
+
+  // Assert
+  assert.deepEqual(finishes.map((finish) => finish.staleReason), [...guardReasons, undefined, undefined])
+  assert.doesNotMatch(JSON.stringify(finishes), /private title text/)
+  assert.match(report, /Titles: 8 superseded · 1 updated/)
+  const guards = report.split("\n").find((line) => line.startsWith("Superseded guards:"))
+  assert.equal(guards, "Superseded guards: 2 newer-request · 1 branch-changed · 1 session-changed · 1 session-shutdown · 1 conversation-advanced · 1 manual-title · 1 not recorded")
+})
+
+test("when old or forged records lack a valid stale guard, report it as not recorded without exposing raw values", (t) => {
+  // Arrange
+  const directory = temporaryStore(t)
+  const legacy = track(directory)
+  legacy.finish({
+    status: "stale",
+    modelRequested: false,
+  })
+  const forged = track(directory)
+  forged.finish({
+    status: "stale",
+    modelRequested: false,
+  })
+  const updated = track(directory)
+  updated.finish({
+    status: "updated",
+    modelRequested: false,
+  })
+  const file = join(directory, readdirSync(directory)[0])
+  const saved = records(directory)
+  saved.find((record) => record.type === "finish" && record.requestId === forged.requestId).staleReason = "private conversation text"
+  saved.find((record) => record.type === "finish" && record.requestId === updated.requestId).staleReason = "manual-title"
+  writeFileSync(file, saved.map((record) => JSON.stringify(record)).join("\n") + "\n")
+
+  // Act
+  const report = describeTitleAnalytics({
+    directory,
+  })
+
+  // Assert
+  assert.match(report, /Titles: 2 superseded · 1 updated/)
+  assert.match(report, /^Superseded guards: 2 not recorded$/m)
+  assert.doesNotMatch(report, /private conversation text|Storage warning/)
+})
+
 test("when telemetry is partial, distinguish reported zero from absent categories and callbacks", (t) => {
   // Arrange
   const directory = temporaryStore(t)

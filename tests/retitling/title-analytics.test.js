@@ -312,6 +312,7 @@ test("when a request is superseded, finalize once and retain its late billed cal
   assert.equal(analytics.requests[1].finishes.length, 1)
   const staleFinish = readAnalyticsRecords(analytics.directory).find((record) => record.type === "finish" && record.status === "stale")
   assert.equal(staleFinish.failureKind, undefined)
+  assert.equal(staleFinish.staleReason, "newer-request")
   const report = describeTitleAnalytics({ directory: analytics.directory })
   assert.match(report, /analytics-test-model/)
   assert.match(report, /2 requests across 1 session/)
@@ -319,6 +320,88 @@ test("when a request is superseded, finalize once and retain its late billed cal
   assert.match(report, /1 updated/)
   assert.match(report, /Usage unavailable for 1 completed model request/)
   assert.equal(sessionManager.getSessionName(), "Current accounting task — accounting")
+})
+
+for (const [events, staleReason] of [
+  [["session_branch", "session_shutdown"], "branch-changed"],
+  [["session_tree"], "branch-changed"],
+  [["session_switch"], "session-changed"],
+  [["session_shutdown"], "session-shutdown"],
+]) {
+  test(`when ${events.join(" then ")} interrupts a request, record its first cancellation reason`, async (t) => {
+    // Arrange
+    const analytics = createAnalyticsFixture(t)
+    const handlers = new Map()
+    const started = Promise.withResolvers()
+    const generation = Promise.withResolvers()
+    registerRetitleExtension({
+      setLabel() {},
+      on: (name, callback) => handlers.set(name, callback),
+      registerCommand() {},
+    }, {
+      createAnalytics: analytics.createAnalytics,
+      resolveTitlePolicy: getDefaultTitlePolicy,
+      generateTitle: (_input, _ctx, _pi, _policy, signal) => {
+        started.resolve(signal)
+        return generation.promise
+      },
+    })
+    const sessionManager = createAccountingSession()
+    const ctx = { sessionManager }
+    const pending = handlers.get("agent_end")({}, ctx)
+    const signal = await started.promise
+
+    // Act
+    for (const event of events) {
+      handlers.get(event)({}, ctx)
+    }
+    const aborted = signal.aborted
+    generation.resolve("Obsolete accounting title")
+    await pending
+
+    // Assert
+    assert.equal(aborted, true)
+    const finishes = readAnalyticsRecords(analytics.directory).filter((record) => record.type === "finish")
+    assert.equal(finishes.length, 1)
+    assert.equal(finishes[0].status, "stale")
+    assert.equal(finishes[0].staleReason, staleReason)
+    assert.equal(finishes[0].failureKind, undefined)
+    assert.equal(sessionManager.getSessionName(), undefined)
+  })
+}
+
+test("when manual ownership changes during a title write, record why the generated title was not cached", async (t) => {
+  // Arrange
+  const analytics = createAnalyticsFixture(t)
+  const sessionManager = createAccountingSession()
+  const written = Promise.withResolvers()
+  const persisted = Promise.withResolvers()
+  const setName = sessionManager.setSessionName.bind(sessionManager)
+  sessionManager.setSessionName = async (name, source, trigger) => {
+    const changed = await setName(name, source, trigger)
+    if (source === "auto") {
+      written.resolve()
+      await persisted.promise
+    }
+    return changed
+  }
+  const pending = retitleWithDefaultPolicy({}, { sessionManager }, {
+    createAnalytics: analytics.createAnalytics,
+    generateTitle: async () => "Accounting import",
+  })
+  await written.promise
+
+  // Act
+  await sessionManager.setSessionName("My chosen title", "user")
+  persisted.resolve()
+  const outcome = await pending
+
+  // Assert
+  assert.equal(outcome.status, "stale")
+  assert.match(outcome.message, /not cached: manual title ownership/)
+  const finish = readAnalyticsRecords(analytics.directory).find((record) => record.type === "finish")
+  assert.equal(finish.staleReason, "manual-title")
+  assert.equal(sessionManager.getSessionName(), "My chosen title")
 })
 
 test("when manual ownership or unchanged turns block retitling, create no extra analytics requests", async (t) => {
