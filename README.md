@@ -104,6 +104,14 @@ Releases before 0.10.0 do not implement this subcommand. If `/retitle status` on
 
 Run `/retitle analytics` for a short summary of the last seven UTC days across threads and OMP processes: requests and sessions, title outcomes, reported model calls, token totals, and average/slowest response time. A single model appears once; multiple models get a compact call/token comparison. Missing usage and storage warnings appear only when relevant. Detailed triggers, timestamps, cache/reasoning usage, and cost estimates remain in the local records rather than cluttering the report. The command makes no model calls and does not rename the session.
 
+**From an agent or shell:** run the installed `omp-retitle-analytics` executable to get the same report on standard output. With the default user plugin installation:
+
+```sh
+"$HOME/.omp/plugins/node_modules/.bin/omp-retitle-analytics"
+```
+
+The executable requires Bun on `PATH`; it does not launch OMP or submit a prompt. Run it with the same profile environment as the session you want to inspect. For a named profile, set `OMP_PROFILE` to its name; for a custom agent directory, preserve `PI_CODING_AGENT_DIR`. If your plugin installation is elsewhere, use its `node_modules/.bin/omp-retitle-analytics`.
+
 When OMP returns no usable title, note the request ID in the warning or `/retitle status`, then run `/retitle analytics`. Match the ID: the report covers the most recent such request across the profile in the seven-day window. It shows OMP’s last reported title-generator reason when available, plus provider stop reasons and whether attempts contained nonblank text. `invalid-title` is OMP’s validation result, not the name of a specific failed validation rule. A provider stop with visible text does not prove that text was accepted. Older hosts or records can lack this evidence. If another failure has displaced yours in the report, look up your request ID in the local records below. Do not share raw host logs.
 
 Usage is measured from OMP's native title callback, not estimated from prompt length. Local models and older hosts may not report tokens or model identity; missing telemetry is shown as unknown, not zero. Reported tokens and estimated cost do not reveal the percentage of an OpenAI subscription limit consumed. Success means a usable title was returned or applied, not that its wording was judged correct.
