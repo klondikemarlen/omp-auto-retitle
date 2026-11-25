@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.0
+
+### Changed
+
+- Replace the standalone `omp-retitle-analytics` executable with `omp-retitle analytics`. Update scripts to use the new invocation; there is no legacy alias. Run `omp-retitle --help` for usage. The interactive `/retitle analytics` command is unchanged.
+
 ## 0.18.0
 
 ### Added
