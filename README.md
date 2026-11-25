@@ -104,13 +104,7 @@ Releases before 0.10.0 do not implement this subcommand. If `/retitle status` on
 
 Run `/retitle analytics` for a short summary of the last seven UTC days across threads and OMP processes: requests and sessions, title outcomes, reported model calls, token totals, and average/slowest response time. A single model appears once; multiple models get a compact call/token comparison. Missing usage and storage warnings appear only when relevant. Detailed triggers, timestamps, cache/reasoning usage, and cost estimates remain in the local records rather than cluttering the report. The command makes no model calls and does not rename the session.
 
-**From an agent or shell:** run `omp-retitle analytics` to get the same report on standard output. With the default user plugin installation:
-
-```sh
-"$HOME/.omp/plugins/node_modules/.bin/omp-retitle" analytics
-```
-
-Use `omp-retitle --help` to list supported commands. The new invocation replaces `omp-retitle-analytics`, which is no longer installed. The executable requires Bun on `PATH`; it does not launch OMP or submit a prompt. Run it with the same profile environment as the session you want to inspect. For a named profile, set `OMP_PROFILE` to its name; for a custom agent directory, preserve `PI_CODING_AGENT_DIR`. If your plugin installation is elsewhere, use its `node_modules/.bin/omp-retitle` executable.
+**From an agent or shell:** use the shell invocation in the [changelog entry for your installed version](/CHANGELOG.md). The executable is under `$HOME/.omp/plugins/node_modules/.bin/` for the default user installation. It prints the same report on standard output and requires Bun on `PATH`; it does not launch OMP or submit a prompt. Use the session’s profile environment (`OMP_PROFILE` for a named profile or `PI_CODING_AGENT_DIR` for a custom agent directory).
 
 When OMP returns no usable title, note the request ID in the warning or `/retitle status`, then run `/retitle analytics`. Match the ID: the report covers the most recent such request across the profile in the seven-day window. It shows OMP’s last reported title-generator reason when available, plus provider stop reasons and whether attempts contained nonblank text. `invalid-title` is OMP’s validation result, not the name of a specific failed validation rule. A provider stop with visible text does not prove that text was accepted. Older hosts or records can lack this evidence. If another failure has displaced yours in the report, look up your request ID in the local records below. Do not share raw host logs.
 
