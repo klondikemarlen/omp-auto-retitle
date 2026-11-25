@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.0
+
+### Changed
+
+- Compaction no longer requests a title when the plugin already knows the task hasn't changed. `/retitle` still forces a refresh.
+- Title generation tolerates passive bookkeeping while preserving conversation, branch, session, and manual-title checks. `/retitle analytics` and `omp-retitle analytics` group superseded requests by the recorded guard; older records have no reason.
+
 ## 0.19.0
 
 ### Changed

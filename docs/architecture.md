@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-A session title should identify the durable task in session history, not the most recent incidental maintenance step. Automatic generation runs after the first completed agent run, successful `todo init` replans, changed repository/ticket/original-task identity, and `session_compact`. Ordinary unchanged-task follow-ups do not invoke the title model. `/retitle` forces an on-demand refresh; all paths preserve manual ownership.
+A session title should identify the durable task in session history, not the most recent incidental maintenance step. Automatic generation follows the first completed run, successful `todo init` replans, and changed repository/ticket/original-task identity. Compaction checks identity rather than forcing a refresh: a new or unknown task is eligible; a known unchanged task needs no new request. `/retitle` forces an on-demand refresh; all paths preserve manual ownership.
 
 ## Responsibilities
 
@@ -18,7 +18,7 @@ A session title should identify the durable task in session history, not the mos
 | `src/retitling/generate-title.js` | Owns latest-request freshness, generation, persistence, and accepted-title caching. |
 | `src/retitling/repair-title.js` | Decides whether cached titles can be restored safely and performs restoration. |
 | `src/retitling/title-status.js` | Renders read-only runtime and repair diagnostics. |
-| `src/retitling/session-identity.js` | Defines task identity and the conversation leaf excluding title metadata. |
+| `src/retitling/session-identity.js` | Defines task identity and distinguishes conversation progress from passive bookkeeping. |
 | `src/omp/omp-adapter.js` | Bridges version-coupled host generation, source-aware persistence, native observation, and loaded-runtime identity. |
 | `src/omp/title-policy.js` | Discovers and parses Markdown policies, using pure format validation. |
 | `src/omp/title-analytics.js` | Persists content-free usage events and aggregates local cross-process reports. |
@@ -61,7 +61,7 @@ Prompt edits apply at the next eligible generation or `/retitle`; they are not a
 
 Generation may overlap between automatic triggers and command invocations. A per-session-manager weak map retains the latest request's identity and abort controller. Only that request may commit; a later request supersedes it even when the later generation fails. Supersession, branch/session resets, and shutdown abort the prior request and release its wait. Other sessions remain independent. Accepted-title caching rechecks ownership after asynchronous persistence, so an older finishing write cannot replace a newer repair cache. Completed or failed current requests release tracking, timers, and abort listeners.
 
-The result must match the captured session ID and selected conversation leaf, and the title must remain auto-owned or unowned. Title-history entries are excluded because title writes append metadata without advancing the conversation. Actual messages, compaction, and branch/session changes still invalidate pending work. The adapter passes the signal in the compiled host's eighth generator argument; pinned source `16.3.11` ignores it, so the plugin also races its wait against cancellation. A late result from an older host cannot commit, even if inference continues there.
+The result must match the captured session ID and selected conversation leaf, and the title must remain auto-owned or unowned. Title writes, extension state (`custom`), and model accounting (`model_usage`) are not new conversation. Messages (including `custom_message`), compaction, and branch/session changes still invalidate pending work. The adapter passes the signal in the compiled host's eighth generator argument; pinned source `16.3.11` ignores it, so the plugin also races its wait against cancellation. A late result from an older host cannot commit, even if inference continues there.
 
 Lifecycle state remembers the current identity (repository, active reference, bounded original task), whether a replan is pending, the last generation outcome, and the last accepted title/context/policy. Only acceptance marks generation successful. An unsuccessful automatic attempt remains eligible at the next completed turn; an accepted fallback counts as a useful title and avoids repeated same-task requests. Branch/tree and session changes reset eligibility; shutdown removes the observer and invalidates pending work. Successful replans generate once at the next `agent_end`. An unchanged follow-up advances the accepted context snapshot and restores a deferred auto overwrite without another model call. No timer retries or provider fallback are introduced.
 
@@ -74,6 +74,8 @@ Bare `/retitle` distinguishes model/subject updates, unchanged titles, grounded 
 ## Usage analytics boundary
 
 Analytics observes plugin generation requests without owning model selection or title persistence. Each request has a unique identity linking its start, final outcome, and any provider-reported attempts, including retries and usage delivered after cancellation. OMP 18.19's tenth `generateSessionTitle` argument supplies actual provider/model and token usage; pinned source and local inference may omit that callback. Unreported usage remains unknown rather than becoming a zero-token success.
+
+Superseded requests record which ownership check stopped the result. The report counts requests, not attempts, by guard. A missing or unrecognized reason is not reconstructed from session messages or timestamps.
 
 Attempt callbacks precede native output validation. Record their allowlisted stop reason and visible-text presence separately from the plugin’s generation failure category. Where the host exposes structured log sinks, observe only native title-generator reason codes in the async invocation of this request; matching by session or wall-clock time would mix overlapping requests. The sink is removed on completion or cancellation. Neither raw events nor the host’s global logging configuration are retained or changed.
 
