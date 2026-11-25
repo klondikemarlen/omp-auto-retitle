@@ -11,19 +11,31 @@ import { getConversationLeafId, getTaskIdentity } from "./session-identity.js"
 const pendingRequests = new WeakMap()
 const GENERATION_TIMEOUT_MS = 30_000
 const NO_ANALYTICS = Object.freeze({ onUsage() {}, finish() {} })
+const staleReasonMessages = {
+  "newer-request": "a newer request took ownership",
+  "branch-changed": "selected branch changed",
+  "session-changed": "session changed",
+  "session-shutdown": "session shut down",
+  "conversation-advanced": "conversation advanced",
+  "manual-title": "manual title ownership",
+}
 
 export function hasPendingTitleRequest(sessionManager) {
   return pendingRequests.has(sessionManager)
 }
 
-export function invalidatePendingTitleRequest(sessionManager) {
-  pendingRequests.get(sessionManager)?.controller.abort(new Error("Request cancelled"))
+export function invalidatePendingTitleRequest(sessionManager, reason) {
+  const request = pendingRequests.get(sessionManager)
+  if (!request) return
+
+  request.staleReason ??= reason
   pendingRequests.delete(sessionManager)
+  request.controller.abort(new Error("Request cancelled"))
 }
 
 export async function generateAndCommitTitle(titleContext, extensionContext, sessionState, options, reason) {
   const sessionManager = extensionContext.sessionManager
-  invalidatePendingTitleRequest(sessionManager)
+  invalidatePendingTitleRequest(sessionManager, "newer-request")
   const request = {
     sessionId: sessionManager.getSessionId?.(),
     conversationLeafId: getConversationLeafId(sessionManager),
@@ -61,8 +73,10 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
       }
     }
 
-    const blocker = getRequestBlocker(sessionManager, request)
-    if (blocker) return recordOutcome(sessionState, sessionManager, request, "stale", `Title not applied: ${blocker}`)
+    const staleReason = getRequestStaleReason(sessionManager, request)
+    if (staleReason) {
+      return recordStaleOutcome(sessionState, sessionManager, request, staleReason, "Title not applied")
+    }
 
     let title = formatSessionTitle(description, titleContext, titlePolicy.format)
     if (!title) {
@@ -76,9 +90,9 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
     }
 
     const changed = await writeAutomaticTitle(sessionManager, title, reason)
-    const persistenceBlocker = getRequestBlocker(sessionManager, request)
-    if (persistenceBlocker) {
-      return recordOutcome(sessionState, sessionManager, request, "stale", `Title not cached: ${persistenceBlocker}`)
+    const persistenceStaleReason = getRequestStaleReason(sessionManager, request)
+    if (persistenceStaleReason) {
+      return recordStaleOutcome(sessionState, sessionManager, request, persistenceStaleReason, "Title not cached")
     }
     if (sessionManager.getSessionName?.() !== title) {
       return recordOutcome(sessionState, sessionManager, request, "unavailable", "Title write was not accepted")
@@ -97,6 +111,7 @@ export async function generateAndCommitTitle(titleContext, extensionContext, ses
       status: request.outcomeStatus,
       modelRequested: request.modelRequested,
       failureKind: request.outcomeStatus === "stale" ? undefined : request.failureKind,
+      staleReason: request.outcomeStatus === "stale" ? request.staleReason : undefined,
       elapsedMs: performance.now() - request.startedAt,
     })
     if (pendingRequests.get(sessionManager) === request) {
@@ -182,13 +197,31 @@ function selectFallbackTitle(titleContext, titlePolicy, sessionState, request) {
   }
 }
 
-function getRequestBlocker(sessionManager, request) {
-  if (pendingRequests.get(sessionManager) !== request) return "newer request or lifecycle change"
-  if (sessionManager.getSessionId?.() !== request.sessionId) return "session changed"
-  if (getConversationLeafId(sessionManager) !== request.conversationLeafId) return "conversation advanced"
-  if (!canAutomaticallyRetitle(sessionManager)) return "manual title ownership"
+function getRequestStaleReason(sessionManager, request) {
+  if (request.staleReason) {
+    return request.staleReason
+  }
 
-  return undefined
+  if (pendingRequests.get(sessionManager) !== request) {
+    return "newer-request"
+  }
+
+  if (sessionManager.getSessionId?.() !== request.sessionId) {
+    return "session-changed"
+  }
+
+  if (getConversationLeafId(sessionManager) !== request.conversationLeafId) {
+    return "conversation-advanced"
+  }
+
+  if (!canAutomaticallyRetitle(sessionManager)) {
+    return "manual-title"
+  }
+}
+
+function recordStaleOutcome(sessionState, sessionManager, request, staleReason, messagePrefix) {
+  request.staleReason = staleReason
+  return recordOutcome(sessionState, sessionManager, request, "stale", `${messagePrefix}: ${staleReasonMessages[staleReason]}`)
 }
 
 function recordOutcome(sessionState, sessionManager, request, status, message) {
