@@ -90,7 +90,7 @@ Edits are read on the next generation. Run `/retitle` to apply them without rest
 
 ## Check the session title
 
-Use `/retitle status` to see your current title, whether automatic retitling can change it, and the latest recorded change. A title can survive a restart even though this process hasn't generated one yet. If a generation failed, status keeps the reason available.
+`/retitle status` starts with the `omp-retitle` version loaded in this terminal. Below it are the current title, whether automatic retitling can change it, and the latest recorded change. A title can survive a restart even though this process hasn't generated one yet. If a generation failed, status keeps the reason available.
 
 To refresh instead, choose `<nothing> — regenerate the title` at the top of OMP’s `/retitle ` menu. The label inserts no argument; submit `/retitle` as usual.
 
