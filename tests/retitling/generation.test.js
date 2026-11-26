@@ -44,6 +44,47 @@ test("when a review cites a file after naming the task, keep the task as the ses
   assert.equal(sessionManager.getSessionName(), "#871: Review counted workflow step completions — accounting")
 })
 
+test("when a handoff follows a path-led task description, retitle with the task rather than the checkout", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  sessionManager.appendMessage({
+    role: "user",
+    content: "#42: `src/import.js` drops empty statements",
+    timestamp: 1,
+  })
+  sessionManager.appendMessage({
+    role: "assistant",
+    content: "Review #42: `../accounting-worktrees/import-fix`, head `abc12345`, base `main`.",
+    timestamp: 2,
+  })
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#42: `src/import.js` drops empty statements — accounting")
+})
+
+test("when a checkout is the only ticket subject, retitle a saved auto title using generation", async () => {
+  // Arrange
+  const sessionManager = createAccountingSession()
+  const checkout = `../worktrees/${"long-branch-name-".repeat(8)}import-fix`
+  sessionManager.appendMessage({
+    role: "user",
+    content: `Review #42: \`${checkout}\`, head \`abc12345\`, base \`main\`.`,
+    timestamp: 1,
+  })
+  await sessionManager.setSessionName(`#42: \`${checkout.slice(0, 119)} — accounting`, "auto")
+
+  // Act
+  await retitleWithDefaultPolicy({}, { sessionManager }, {
+    generateTitle: async () => "Review empty statement imports",
+  })
+
+  // Assert
+  assert.equal(sessionManager.getSessionName(), "#42: Review empty statement imports — accounting")
+})
+
 test("when the generated review description includes a source citation, persist its task prose", async () => {
   // Arrange
   const sessionManager = createAccountingSession()
