@@ -26,12 +26,16 @@ export function describeRetitleStatus(extensionContext, sessionState, options = 
   const sessionManager = extensionContext?.sessionManager
   const titleContext = buildSessionTitleContext({}, extensionContext)
   const nextTitlePolicy = describeNextTitlePolicy(extensionContext, options)
+  const runtime = getLoadedPluginInfo()
+  const heading = `omp-retitle ${runtime.version} (loaded in this process)`
   if (options.statusDetails !== true) {
-    return describeStatusOverview(sessionManager, sessionState, titleContext, nextTitlePolicy).join("\n")
+    return [heading, ...describeStatusOverview(sessionManager, sessionState, titleContext, nextTitlePolicy)].join("\n")
   }
 
   return [
-    ...describeLoadedExtension(),
+    heading,
+    `Process: ${runtime.pid}; module loaded: ${runtime.loadedAt}`,
+    `Extension: ${runtime.entry}`,
     ...describeCurrentSession(sessionManager, titleContext),
     nextTitlePolicy,
     ...describeSessionLifecycle(sessionManager, sessionState),
@@ -144,15 +148,6 @@ function describeTitleChangeReason(change) {
   }
 
   return "Reason not recorded"
-}
-
-function describeLoadedExtension() {
-  const runtime = getLoadedPluginInfo()
-  return [
-    `omp-retitle ${runtime.version} (loaded in this process)`,
-    `Process: ${runtime.pid}; module loaded: ${runtime.loadedAt}`,
-    `Extension: ${runtime.entry}`,
-  ]
 }
 
 function describeCurrentSession(sessionManager, titleContext) {

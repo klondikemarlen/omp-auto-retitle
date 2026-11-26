@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.0
+
+### Changed
+
+- `/retitle status` now shows the plugin version loaded in the current process on its first line. Process and module paths remain in `/retitle status details`.
+
 ## 0.20.1
 
 ### Fixed
