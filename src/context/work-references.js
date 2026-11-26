@@ -6,6 +6,8 @@ const MAX_WORK_EVIDENCE_LENGTH = 130
 const GITHUB_WORK_REFERENCE = /https?:\/\/github\.com\/([a-z0-9_.-]+)\/([a-z0-9_.-]+)\/(issues|pull)\/(\d+)/i
 const JIRA_REFERENCE = /\b[A-Z][A-Z0-9]+-\d+\b/
 const SHORT_WORK_REFERENCE = /(?:\b(issue|PR|pull request)\s*)?#(\d+)\b/gi
+// Review handoffs list a checkout and revision where a ticket subject would normally appear.
+const CHECKOUT_REVISION = /^(?:`[^`]*\/[^`]*`|[^\s,`]*\/[^\s,`]+),\s*head\s+`?[0-9a-f]{7,64}\b/i
 
 export function selectWorkEvidence(entries) {
   const evidence = []
@@ -130,6 +132,10 @@ function compactEvidence(line, description, { match, reference, repository, shor
 
 function explicitWorkSubject(text) {
   const candidate = text.match(/^\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)/)?.[1]
+  if (candidate && CHECKOUT_REVISION.test(candidate)) {
+    return ""
+  }
+
   const subject = normalizeContextText(candidate, MAX_USER_CONTEXT_LENGTH)
   if (/^(?:\{|\[\s*(?:\{|["']))/.test(subject)) return ""
 

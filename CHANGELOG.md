@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.1
+
+### Fixed
+
+- `/retitle` no longer mistakes a ticket's checkout path and head revision for its subject. It uses an earlier readable subject for that ticket or asks OMP for a description.
+
 ## 0.20.0
 
 ### Changed
